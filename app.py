@@ -24,7 +24,7 @@ def analyze_story(story_text):
     Story text:
     """ + story_text
     
-    model = model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-1.5-flash')
     response = model.generate_content(prompt)
     return response.text
 
