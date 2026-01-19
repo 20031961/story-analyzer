@@ -4,7 +4,7 @@ import markdown  # <--- This is the new translator tool
 
 # --- CONFIGURATION ---
 # PASTE YOUR KEY HERE
-API_KEY = "AIzaSyB3_bkOHgkrV4M52CUTVobQAJjKa_KwMV4"
+API_KEY = "genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])"
 
 if API_KEY == "PASTE_YOUR_NEW_KEY_HERE":
     st.warning("⚠️ Please paste your API Key in the code file (Line 6)")
