@@ -35,7 +35,7 @@ try:
 except:
     st.error("⚠️ API Key missing. Please check Secrets.")
 
-# --- HELPER: CREATE DOWNLOADABLE HTML ---
+# --- DOWNLOAD HELPER ---
 def create_html_report(content, title):
     html_content = markdown.markdown(content)
     return f"""
@@ -59,6 +59,8 @@ def create_html_report(content, title):
 
 # --- BRAIN 1: SCENE ANALYZER (Microscope) ---
 def analyze_scene(text, genre, framework, beat):
+    
+    # 1. Base Instructions (Always run this)
     prompt = f"""
     You are a ruthless Story Grid editor. Analyze this SCENE.
     STYLE: Be concise. Bullet points. Visual Scoreboard at top.
@@ -68,35 +70,70 @@ def analyze_scene(text, genre, framework, beat):
     OUTPUT FORMAT:
     1. HEADER: "# [Emoji] [Start Value] ➔ [End Value]"
     2. THE 5 COMMANDMENTS (Bullet points)
-    3. FRAMEWORK CHECK: Verdict (✅ PASS / ❌ FAIL) and 1 sentence reason.
+    """
+    
+    # 2. Conditional Instructions (Only if Framework is selected)
+    if "None" not in framework:
+        prompt += f"""
+    3. FRAMEWORK CHECK ({framework}): Verdict (✅ PASS / ❌ FAIL) and 1 sentence reason.
+        """
+    
+    # 3. Genre Check (Always run this)
+    prompt += f"""
     4. GENRE CHECK: Gold Star Moment 🌟
     
     STORY TEXT: {text}
     """
+    
     model = genai.GenerativeModel('gemini-flash-latest')
     return model.generate_content(prompt).text
 
 # --- BRAIN 2: OUTLINE DOCTOR (Telescope) ---
 def analyze_outline(text, genre, framework):
-    prompt = f"""
-    You are a master story architect. Analyze this PLOT OUTLINE.
-    STYLE: Professional, structural diagnosis.
     
-    CONTEXT: Genre: {genre} | Target Framework: {framework}
-    
-    TASK:
-    Compare this user's outline against the structural beats of {framework}.
-    
-    OUTPUT FORMAT:
-    1. **Structural Health Score:** (Score out of 10)
-    2. **The Gap Analysis:**
-       - List the required beats of {framework}.
-       - For each beat, mark it ✅ FOUND or ❌ MISSING/WEAK.
-       - If missing, suggest ONE specific plot idea based on {genre}.
-    3. **Pacing Check:** One sentence on flow.
-    
-    OUTLINE TEXT: {text}
-    """
+    # A. If they chose a specific framework (e.g. Save the Cat)
+    if "None" not in framework:
+        prompt = f"""
+        You are a master story architect. Analyze this PLOT OUTLINE.
+        STYLE: Professional, structural diagnosis.
+        
+        CONTEXT: Genre: {genre} | Target Framework: {framework}
+        
+        TASK:
+        Compare this user's outline against the structural beats of {framework}.
+        
+        OUTPUT FORMAT:
+        1. **Structural Health Score:** (Score out of 10)
+        2. **The Gap Analysis:**
+           - List the required beats of {framework}.
+           - For each beat, mark it ✅ FOUND or ❌ MISSING/WEAK.
+           - If missing, suggest ONE specific plot idea based on {genre}.
+        3. **Pacing Check:** One sentence on flow.
+        """
+        
+    # B. If they chose "None" (Pure Story Grid Global 5)
+    else:
+        prompt = f"""
+        You are a master story architect. Analyze this PLOT OUTLINE.
+        STYLE: Professional, structural diagnosis.
+        
+        CONTEXT: Genre: {genre} | Framework: Pure Story Grid (Global Structure)
+        
+        TASK:
+        Identify the "Global 5 Commandments" of the entire story arc.
+        
+        OUTPUT FORMAT:
+        1. **Narrative Arc Score:** (Score out of 10 for logical flow)
+        2. **The Global 5 Commandments:**
+           - **Inciting Incident:** (Is there a clear global hook?)
+           - **Turning Point:** (The major shift in the middle?)
+           - **Crisis:** (The ultimate choice?)
+           - **Climax:** (The final battle/action?)
+           - **Resolution:** (The new world order?)
+        3. **Gap Analysis:** Are any of these 5 missing?
+        """
+
+    prompt += f"\nOUTLINE TEXT: {text}"
     model = genai.GenerativeModel('gemini-flash-latest')
     return model.generate_content(prompt).text
 
@@ -108,7 +145,9 @@ with st.sidebar:
     st.header("🎛️ Project Settings")
     st.caption("Logged in")
     selected_genre = st.selectbox("Genre", ["Action/Thriller", "Love Story", "Horror", "Mystery/Crime", "Sci-Fi/Fantasy", "Drama", "Non-Fiction"])
-    selected_framework = st.selectbox("Structure Framework", ["Save the Cat!", "Dan Harmon's Story Circle", "Fichtean Curve"])
+    
+    # RESTORED: "None" option is back!
+    selected_framework = st.selectbox("Structure Framework", ["None (Pure Story Grid)", "Save the Cat!", "Dan Harmon's Story Circle", "Fichtean Curve"])
 
 # TABS
 tab1, tab2 = st.tabs(["🔬 Scene Analyzer", "🩺 Outline Doctor"])
@@ -125,7 +164,12 @@ with tab1:
     elif selected_framework == "Fichtean Curve":
         beat_options = ["Inciting Incident", "Rising Crisis", "Climax"]
     
-    selected_beat = st.selectbox("Which Beat is this scene?", beat_options)
+    # Hide the beat selector if "None" is chosen (keeps it clean)
+    if "None" not in selected_framework:
+        selected_beat = st.selectbox("Which Beat is this scene?", beat_options)
+    else:
+        selected_beat = "General Scene"
+
     scene_input = st.text_area("Paste Scene Text:", height=300, key="scene_in")
     
     if st.button("Analyze Scene", type="primary"):
@@ -133,22 +177,24 @@ with tab1:
             with st.spinner("Analyzing Scene..."):
                 report = analyze_scene(scene_input, selected_genre, selected_framework, selected_beat)
                 st.markdown(report)
-                # Download
                 html_file = create_html_report(report, "Scene Analysis")
                 st.download_button("📥 Download Report", html_file, "scene_analysis.html", "text/html")
 
 # === TAB 2: OUTLINE DOCTOR ===
 with tab2:
     st.markdown("### 🚑 Structural Health Check")
-    st.info(f"Paste your bulleted plot outline. The AI will check if it fits the **{selected_framework}** structure.")
+    
+    if "None" not in selected_framework:
+        st.info(f"Checking against **{selected_framework}** beats.")
+    else:
+        st.info("Checking for the **Global 5 Commandments** (General Arc).")
     
     outline_input = st.text_area("Paste Full Plot Outline:", height=300, key="outline_in")
     
     if st.button("Diagnose Outline", type="primary"):
         if outline_input:
-            with st.spinner(f"Measuring against {selected_framework}..."):
+            with st.spinner("Diagnosing Arc..."):
                 diagnosis = analyze_outline(outline_input, selected_genre, selected_framework)
                 st.markdown(diagnosis)
-                # Download
                 html_file = create_html_report(diagnosis, "Outline Diagnosis")
                 st.download_button("📥 Download Diagnosis", html_file, "outline_diagnosis.html", "text/html")
