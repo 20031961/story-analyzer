@@ -2,129 +2,163 @@ import streamlit as st
 import google.generativeai as genai
 import markdown
 
-# 1. Page Configuration (The Polish)
+# 1. SETUP
 st.set_page_config(
-    page_title="Story Grid Analyzer",
-    page_icon="📚",
-    layout="wide",  # This uses the full screen width
+    page_title="Story Grid Analyzer Pro",
+    page_icon="🧬",
+    layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 2. Configure API
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 except:
-    st.error("Missing API Key. Please check your Streamlit Secrets.")
+    st.error("⚠️ API Key missing. Please check Secrets.")
 
-# 3. The Brain (Analysis Function)
-def analyze_story(story_text):
-    prompt = """
-    You are an expert Story Grid editor. Analyze the submitted scene and identify the 5 Commandments of Storytelling. 
+# 2. THE BRAIN (The Best of Both Worlds)
+def analyze_story(story_text, genre, framework, beat):
     
-    For each commandment, provide:
-    1. The specific text/quote from the story that represents it.
-    2. A brief explanation of why it fits that commandment.
+    # A. The "Ruthless" Style Guide
+    style_guide = """
+    STYLE GUIDELINES (STRICT):
+    - Be RUTHLESSLY CONCISE. No academic fluff.
+    - Use bullet points.
+    - Max 2 sentences per explanation.
+    - Do not summarize the story; only analyze the structure.
+    - If a commandment is missing, say "MISSING".
+    """
 
-    Please format your response as a structured report covering:
+    base_prompt = f"""
+    You are a precision-focused Story Grid editor. {style_guide}
     
-    1. **Inciting Incident** (Is it Causal or Coincidental?)
-    2. **Turning Point** (Is it Action or Revelation? How does the value shift?)
-    3. **Crisis** (Is it a Best Bad Choice or Irreconcilable Goods?)
-    4. **Climax** (What is the active choice made?)
-    5. **Resolution** (What is the new status quo?)
+    CRITICAL TASK 1: THE 5 COMMANDMENTS
+    Identify these 5 elements. Format strictly as follows:
+    * **Inciting Incident:** [Quote] - *[1-sentence explanation]*
+    * **Turning Point:** [Quote] - *[Action or Revelation?]*
+    * **Crisis:** [Quote] - *[Best Bad Choice or Irreconcilable Goods?]*
+    * **Climax:** [Quote] - *[Active choice made]*
+    * **Resolution:** [Quote] - *[New status quo]*
+    """
+    
+    # B. The Framework Logic (Pass/Fail Verdicts)
+    framework_instructions = ""
+    if framework == "Save the Cat!":
+        framework_instructions = f"""
+        CRITICAL TASK 2: STRUCTURAL CHECK ({framework})
+        Target Beat: "{beat}"
+        - **Verdict:** [PASS / FAIL / MIXED]
+        - **Reasoning:** [One direct paragraph explaining why it fits or misses the "{beat}" criteria.]
+        """
+    elif framework == "Dan Harmon's Story Circle":
+        framework_instructions = f"""
+        CRITICAL TASK 2: STRUCTURAL CHECK ({framework})
+        Target Stage: "{beat}"
+        - **Verdict:** [PASS / FAIL / MIXED]
+        - **Reasoning:** [One direct paragraph on the character's psychological state.]
+        """
+    elif framework == "Fichtean Curve":
+        framework_instructions = f"""
+        CRITICAL TASK 2: STRUCTURAL CHECK ({framework})
+        Target Crisis: "{beat}"
+        - **Verdict:** [PASS / FAIL / MIXED]
+        - **Reasoning:** [Is this a high-tension mini-crisis? Explain briefly.]
+        """
+        
+    # C. Genre Alignment (The Gold Star)
+    genre_instructions = f"""
+    CRITICAL TASK 3: GENRE ALIGNMENT ({genre})
+    - **Genre Check:** Does it feel like a {genre}?
+    - **Gold Star Moment:** [Highlight the single best line/action that nails the genre.]
+    """
 
-    Story text:
-    """ + story_text
+    final_prompt = base_prompt + "\n" + framework_instructions + "\n" + genre_instructions + "\n\nSTORY TEXT:\n" + story_text
     
     model = genai.GenerativeModel('gemini-flash-latest')
-    response = model.generate_content(prompt)
+    response = model.generate_content(final_prompt)
     return response.text
 
-# 4. HTML Report Generator
-def create_html_report(story_text, analysis_text):
+# 3. REPORT GENERATOR
+def create_html_report(story_text, analysis_text, genre, framework):
     html_content = markdown.markdown(analysis_text)
-    full_html = f"""
+    return f"""
     <html>
     <head>
         <style>
-            body {{ font-family: 'Helvetica', 'Arial', sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }}
-            h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }}
-            h2 {{ color: #e67e22; margin-top: 30px; }}
+            body {{ font-family: 'Helvetica', 'Arial', sans-serif; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }}
+            h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; }}
+            h2 {{ color: #e67e22; margin-top: 25px; font-size: 1.2em; text-transform: uppercase; letter-spacing: 1px; }}
+            p, li {{ line-height: 1.5; }}
             strong {{ color: #2980b9; }}
-            .story-box {{ background-color: #f9f9f9; border-left: 5px solid #ccc; padding: 15px; margin-bottom: 30px; font-style: italic; }}
-            .footer {{ margin-top: 50px; font-size: 0.8em; color: #777; border-top: 1px solid #eee; padding-top: 10px; }}
+            .footer {{ margin-top: 40px; font-size: 0.8em; color: #999; border-top: 1px solid #eee; padding-top: 10px; }}
         </style>
     </head>
     <body>
-        <h1>Story Grid Analysis Report</h1>
-        <h2>Original Scene</h2>
-        <div class="story-box">{story_text[:500]}...</div>
-        <h2>The 5 Commandments</h2>
+        <h1>🧬 Analysis Report</h1>
+        <p><strong>Context:</strong> {genre} | {framework}</p>
         {html_content}
-        <div class="footer">Generated by Story Grid Analyzer 2.0</div>
+        <div class="footer">Generated by Story Grid Analyzer Pro</div>
     </body>
     </html>
     """
-    return full_html
 
-# --- THE LAYOUT ---
-
-# Sidebar (The Guide)
+# 4. THE UI (With Full Options)
 with st.sidebar:
-    st.header("📚 Editor's Guide")
-    st.markdown("""
-    **The 5 Commandments** are the backbone of any working scene.
+    st.title("🎛️ Settings")
     
-    ---
+    # Genre
+    selected_genre = st.selectbox(
+        "Genre",
+        ["Action/Thriller", "Love Story", "Horror", "Mystery/Crime", "Sci-Fi/Fantasy", "Drama", "Non-Fiction/Memoir"]
+    )
     
-    **1. Inciting Incident**
-    *The event that upsets the balance.*
+    st.divider()
     
-    **2. Turning Point**
-    *The action or revelation that shifts the value.*
+    # Framework
+    selected_framework = st.selectbox(
+        "Story Framework",
+        ["None (Pure Story Grid)", "Save the Cat!", "Dan Harmon's Story Circle", "Fichtean Curve"]
+    )
     
-    **3. Crisis**
-    *The difficult choice (Best Bad Choice or Irreconcilable Goods).*
+    # Dynamic Beats (THE FULL LISTS RESTORED)
+    selected_beat = "N/A"
     
-    **4. Climax**
-    *The active choice the protagonist makes.*
-    
-    **5. Resolution**
-    *The new status quo after the choice.*
-    """)
-    st.info("💡 **Tip:** Paste a complete scene (approx. 1000-2000 words) for the best results.")
+    if selected_framework == "Save the Cat!":
+        selected_beat = st.selectbox("Which Beat is this?", [
+            "Opening Image", "Theme Stated", "Set-up", "Catalyst", "Debate", 
+            "Break into Two", "B Story", "Fun and Games", "Midpoint", 
+            "Bad Guys Close In", "All is Lost", "Dark Night of the Soul", 
+            "Break into Three", "Finale", "Final Image"
+        ])
+        st.info(f"Targeting: **{selected_beat}**")
+        
+    elif selected_framework == "Dan Harmon's Story Circle":
+        selected_beat = st.selectbox("Which Stage?", [
+            "1. YOU (Zone of Comfort)", "2. NEED (Want Something)", "3. GO (Enter Unfamiliar)", 
+            "4. SEARCH (Adapt)", "5. FIND (Get what they wanted)", "6. TAKE (Pay the price)", 
+            "7. RETURN (Go back)", "8. CHANGE (Master of two worlds)"
+        ])
+        
+    elif selected_framework == "Fichtean Curve":
+        selected_beat = st.selectbox("Which Crisis Series?", [
+            "Inciting Incident", "Rising Crisis 1", "Rising Crisis 2", 
+            "Rising Crisis 3", "Major Climax", "Falling Action"
+        ])
 
-# Main Area (The Workspace)
-st.title("Story Grid Analyzer 2.0 🚀")
-st.markdown("### ✍️ Scene Validator")
+# Main Area
+st.title("Story Grid Analyzer Pro 🧬")
+st.markdown(f"### Precision Analysis: **{selected_genre}**")
 
-# Two columns: Input on left, Results on right (if you want side-by-side)
-# For now, let's keep it stacked but wide
-story_input = st.text_area("Paste your scene text below:", height=300, placeholder="It was a dark and stormy night...")
+story_input = st.text_area("Paste scene text:", height=350, placeholder="It was a dark and stormy night...")
 
-col1, col2 = st.columns([1, 4]) # Create a small column for the button
-with col1:
-    analyze_btn = st.button("🔍 Analyze Scene", type="primary") # 'primary' makes it red/bold
-
-if analyze_btn:
+if st.button("🚀 Analyze", type="primary"):
     if story_input:
-        with st.spinner("Reading your story..."):
+        with st.spinner("Analyzing structure..."):
             try:
-                report = analyze_story(story_input)
-                
-                # Visual Separator
-                st.divider()
-                st.subheader("📝 Analysis Report")
+                report = analyze_story(story_input, selected_genre, selected_framework, selected_beat)
+                st.markdown("---")
                 st.markdown(report)
-                
-                # Download Button
-                html_file = create_html_report(story_input, report)
-                st.download_button(
-                    label="📥 Download PDF/HTML Report",
-                    data=html_file,
-                    file_name="story_analysis.html",
-                    mime="text/html"
-                )
+                html_file = create_html_report(story_input, report, selected_genre, selected_framework)
+                st.download_button("📥 Download Report", html_file, "analysis.html", "text/html")
             except Exception as e:
                 st.error(f"Error: {e}")
     else:
