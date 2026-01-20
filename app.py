@@ -132,11 +132,14 @@ with tab1:
         if st.button("🚀 Analyze Scene", type="primary"):
             if scene_input:
                 with st.spinner("Analyzing..."):
-                    # Run AI
-                    report = analyze_scene(scene_input, selected_genre, selected_framework, selected_beat)
-                    # Save to Session State so it persists
-                    st.session_state.current_report = report
-                    st.rerun()
+                    try:
+                        # Run AI
+                        report = analyze_scene(scene_input, selected_genre, selected_framework, selected_beat)
+                        # Save to Session State so it persists
+                        st.session_state.current_report = report
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error: {e}")
 
     with col2:
         st.markdown("### 2. Review & Log")
@@ -148,10 +151,55 @@ with tab1:
                 new_entry = {
                     "Chapter": chapter_title,
                     "Beat": selected_beat,
-                    "Verdict": "See Report", # Parsing this exact text is hard, keeping it simple
+                    "Verdict": "See Report", 
                     "Full Analysis": st.session_state.current_report
                 }
                 st.session_state.chapter_log.append(new_entry)
                 st.success(f"Saved {chapter_title}!")
         else:
-            st.markdown("*Run an analysis to see results
+            st.markdown("*Run an analysis to see results here.*")
+
+    # DISPLAY REPORT (Full Width)
+    if st.session_state.current_report:
+        st.markdown("---")
+        st.markdown(st.session_state.current_report)
+
+    # DISPLAY PROJECT TABLE (Bottom)
+    st.markdown("---")
+    st.subheader("📊 Project Table (Your Book Map)")
+    
+    if len(st.session_state.chapter_log) > 0:
+        # Convert list to DataFrame
+        df = pd.DataFrame(st.session_state.chapter_log)
+        st.dataframe(df, use_container_width=True)
+        
+        # CSV Download
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            "📥 Download Project CSV",
+            csv,
+            "my_novel_analysis.csv",
+            "text/csv",
+            key='download-csv'
+        )
+    else:
+        st.caption("No chapters logged yet. Analyze a scene and click 'Add to Project Table'.")
+
+# === TAB 2: OUTLINE DOCTOR ===
+with tab2:
+    st.markdown("### 🚑 Structural Health Check")
+    if "None" not in selected_framework:
+        st.info(f"Checking against **{selected_framework}** beats.")
+    else:
+        st.info("Checking for **Global 5 Commandments**.")
+    
+    outline_input = st.text_area("Paste Full Plot Outline:", height=300)
+    
+    if st.button("Diagnose Outline", type="primary"):
+        if outline_input:
+            with st.spinner("Diagnosing..."):
+                try:
+                    diagnosis = analyze_outline(outline_input, selected_genre, selected_framework)
+                    st.markdown(diagnosis)
+                except Exception as e:
+                    st.error(f"Error: {e}")
