@@ -1,43 +1,48 @@
 import streamlit as st
 import google.generativeai as genai
 
-# 1. Setup
-st.title("System Diagnostic Tool")
-st.write("Inspecting server status...")
+# Configure the API key securely
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# 2. Check Library Version
-try:
-    version = genai.__version__
-    st.success(f"Library Version: {version}")
-    if version < "0.8.0":
-        st.error("❌ Version is too old! We need at least 0.8.0")
+def analyze_story(story_text):
+    # The Story Grid Instructions
+    prompt = """
+    You are an expert Story Grid editor. Analyze the submitted scene and identify the 5 Commandments of Storytelling. 
+    
+    For each commandment, provide:
+    1. The specific text/quote from the story that represents it.
+    2. A brief explanation of why it fits that commandment.
+
+    Please format your response as a structured report covering:
+    
+    1. **Inciting Incident** (Is it Causal or Coincidental?)
+    2. **Turning Point** (Is it Action or Revelation? How does the value shift?)
+    3. **Crisis** (Is it a Best Bad Choice or Irreconcilable Goods?)
+    4. **Climax** (What is the active choice made?)
+    5. **Resolution** (What is the new status quo?)
+
+    Story text:
+    """ + story_text
+    
+    # USE THE MODEL FOUND IN YOUR DIAGNOSTIC LIST
+    model = genai.GenerativeModel('gemini-flash-latest') 
+    response = model.generate_content(prompt)
+    return response.text
+
+# Page Layout
+st.title("Story Grid Analyzer 2.0")
+st.markdown("### The 5 Commandments Detector")
+st.write("Paste your scene below to identify the Inciting Incident, Turning Point, Crisis, Climax, and Resolution.")
+
+story_input = st.text_area("Your Story Scene", height=300)
+
+if st.button("Analyze Scene"):
+    if story_input:
+        with st.spinner("Searching for the 5 Commandments..."):
+            try:
+                report = analyze_story(story_input)
+                st.markdown(report)
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
     else:
-        st.info("✅ Version is good.")
-except Exception as e:
-    st.error(f"Could not read version: {e}")
-
-# 3. Check Connection & Models
-try:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    st.write("Attempting to connect to Google...")
-    
-    # Ask Google for a list of available models
-    models = list(genai.list_models())
-    
-    st.write("### Available Models found:")
-    found_flash = False
-    
-    for m in models:
-        # Print the exact name the computer wants
-        st.text(f"- {m.name}")
-        if "flash" in m.name:
-            found_flash = True
-            
-    if found_flash:
-        st.success("✅ The server SEES the Flash model!")
-    else:
-        st.error("❌ The server cannot find Flash. Access might be restricted.")
-
-except Exception as e:
-    st.error(f"⚠️ Connection Failed: {e}")
-    st.write("Double check your API Key in Secrets.")
+        st.warning("Please paste a scene first.")
