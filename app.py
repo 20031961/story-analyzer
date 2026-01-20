@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import markdown
 
-# 1. SETUP
+# 1. SETUP & AUTHENTICATION
 st.set_page_config(
     page_title="Story Grid Analyzer Pro",
     page_icon="🧬",
@@ -10,65 +10,81 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- SECURITY CHECK ---
+def check_password():
+    """Returns `True` if the user had the correct password."""
+    
+    # Initialize the session state if it doesn't exist
+    if "password_correct" not in st.session_state:
+        st.session_state.password_correct = False
+
+    # If already logged in, return True
+    if st.session_state.password_correct:
+        return True
+
+    # Show input box
+    st.title("🔒 Login Required")
+    password = st.text_input("Enter Password", type="password")
+    
+    if st.button("Enter"):
+        # SET YOUR PASSWORD HERE (Currently 'story2026')
+        if password == "story2026": 
+            st.session_state.password_correct = True
+            st.rerun() # Refresh the app to show the content
+        else:
+            st.error("😕 Incorrect password")
+    return False
+
+# Stop the app here if not logged in
+if not check_password():
+    st.stop()
+
+# 2. CONFIGURE API
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 except:
     st.error("⚠️ API Key missing. Please check Secrets.")
 
-# 2. THE BRAIN (The Best of Both Worlds)
+# 3. THE BRAIN (Now with Visual Instructions)
 def analyze_story(story_text, genre, framework, beat):
     
-    # A. The "Ruthless" Style Guide
     style_guide = """
-    STYLE GUIDELINES (STRICT):
-    - Be RUTHLESSLY CONCISE. No academic fluff.
-    - Use bullet points.
-    - Max 2 sentences per explanation.
-    - Do not summarize the story; only analyze the structure.
-    - If a commandment is missing, say "MISSING".
+    STYLE GUIDELINES (VISUAL):
+    - Start immediately with a LEVEL 1 HEADER showing the Value Shift (e.g., "# 💀 Life ➔ Death").
+    - Use EMOJIS for the verdict (e.g., "✅ **PASS**" or "❌ **FAIL**").
+    - Be RUTHLESSLY CONCISE. Max 2 sentences per point.
     """
 
     base_prompt = f"""
-    You are a precision-focused Story Grid editor. {style_guide}
+    You are a visual Story Grid editor. {style_guide}
     
-    CRITICAL TASK 1: THE 5 COMMANDMENTS
-    Identify these 5 elements. Format strictly as follows:
-    * **Inciting Incident:** [Quote] - *[1-sentence explanation]*
-    * **Turning Point:** [Quote] - *[Action or Revelation?]*
-    * **Crisis:** [Quote] - *[Best Bad Choice or Irreconcilable Goods?]*
-    * **Climax:** [Quote] - *[Active choice made]*
-    * **Resolution:** [Quote] - *[New status quo]*
+    CRITICAL TASK 1: THE VALUE SHIFT (SCOREBOARD)
+    Determine the primary value shift of the scene.
+    OUTPUT FORMAT: Start your response with: "# [Emoji] [Start Value] ➔ [End Value]"
+    
+    CRITICAL TASK 2: THE 5 COMMANDMENTS
+    Identify these 5 elements. Format as bullet points:
+    * **Inciting Incident:** [Quote] - *[Cause]*
+    * **Turning Point:** [Quote] - *[Action/Revelation]*
+    * **Crisis:** [Quote] - *[Choice]*
+    * **Climax:** [Quote] - *[Action]*
+    * **Resolution:** [Quote] - *[New Status]*
     """
     
-    # B. The Framework Logic (Pass/Fail Verdicts)
+    # Framework Logic
     framework_instructions = ""
-    if framework == "Save the Cat!":
+    if framework != "None (Pure Story Grid)":
         framework_instructions = f"""
-        CRITICAL TASK 2: STRUCTURAL CHECK ({framework})
+        CRITICAL TASK 3: STRUCTURAL CHECK ({framework})
         Target Beat: "{beat}"
-        - **Verdict:** [PASS / FAIL / MIXED]
-        - **Reasoning:** [One direct paragraph explaining why it fits or misses the "{beat}" criteria.]
-        """
-    elif framework == "Dan Harmon's Story Circle":
-        framework_instructions = f"""
-        CRITICAL TASK 2: STRUCTURAL CHECK ({framework})
-        Target Stage: "{beat}"
-        - **Verdict:** [PASS / FAIL / MIXED]
-        - **Reasoning:** [One direct paragraph on the character's psychological state.]
-        """
-    elif framework == "Fichtean Curve":
-        framework_instructions = f"""
-        CRITICAL TASK 2: STRUCTURAL CHECK ({framework})
-        Target Crisis: "{beat}"
-        - **Verdict:** [PASS / FAIL / MIXED]
-        - **Reasoning:** [Is this a high-tension mini-crisis? Explain briefly.]
+        - **Verdict:** [✅ PASS / ❌ FAIL / ⚠️ MIXED]
+        - **Reasoning:** [One direct sentence explaining why.]
         """
         
-    # C. Genre Alignment (The Gold Star)
+    # Genre Logic
     genre_instructions = f"""
-    CRITICAL TASK 3: GENRE ALIGNMENT ({genre})
-    - **Genre Check:** Does it feel like a {genre}?
-    - **Gold Star Moment:** [Highlight the single best line/action that nails the genre.]
+    CRITICAL TASK 4: GENRE ALIGNMENT ({genre})
+    - **Gold Star Moment:** 🌟 [Highlight the best genre-specific line]
     """
 
     final_prompt = base_prompt + "\n" + framework_instructions + "\n" + genre_instructions + "\n\nSTORY TEXT:\n" + story_text
@@ -77,7 +93,7 @@ def analyze_story(story_text, genre, framework, beat):
     response = model.generate_content(final_prompt)
     return response.text
 
-# 3. REPORT GENERATOR
+# 4. REPORT GENERATOR
 def create_html_report(story_text, analysis_text, genre, framework):
     html_content = markdown.markdown(analysis_text)
     return f"""
@@ -85,81 +101,56 @@ def create_html_report(story_text, analysis_text, genre, framework):
     <head>
         <style>
             body {{ font-family: 'Helvetica', 'Arial', sans-serif; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }}
-            h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; }}
-            h2 {{ color: #e67e22; margin-top: 25px; font-size: 1.2em; text-transform: uppercase; letter-spacing: 1px; }}
+            h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; text-align: center; font-size: 2.5em; }}
+            h2 {{ color: #e67e22; margin-top: 25px; text-transform: uppercase; font-size: 1.2em; }}
             p, li {{ line-height: 1.5; }}
             strong {{ color: #2980b9; }}
-            .footer {{ margin-top: 40px; font-size: 0.8em; color: #999; border-top: 1px solid #eee; padding-top: 10px; }}
+            .footer {{ margin-top: 40px; font-size: 0.8em; color: #999; border-top: 1px solid #eee; padding-top: 10px; text-align: center; }}
         </style>
     </head>
     <body>
-        <h1>🧬 Analysis Report</h1>
-        <p><strong>Context:</strong> {genre} | {framework}</p>
         {html_content}
         <div class="footer">Generated by Story Grid Analyzer Pro</div>
     </body>
     </html>
     """
 
-# 4. THE UI (With Full Options)
+# 5. THE UI
 with st.sidebar:
     st.title("🎛️ Settings")
+    st.caption(f"Logged in as Editor")
     
-    # Genre
-    selected_genre = st.selectbox(
-        "Genre",
-        ["Action/Thriller", "Love Story", "Horror", "Mystery/Crime", "Sci-Fi/Fantasy", "Drama", "Non-Fiction/Memoir"]
-    )
-    
+    selected_genre = st.selectbox("Genre", ["Action/Thriller", "Love Story", "Horror", "Mystery/Crime", "Sci-Fi/Fantasy", "Drama", "Non-Fiction/Memoir"])
     st.divider()
+    selected_framework = st.selectbox("Story Framework", ["None (Pure Story Grid)", "Save the Cat!", "Dan Harmon's Story Circle", "Fichtean Curve"])
     
-    # Framework
-    selected_framework = st.selectbox(
-        "Story Framework",
-        ["None (Pure Story Grid)", "Save the Cat!", "Dan Harmon's Story Circle", "Fichtean Curve"]
-    )
-    
-    # Dynamic Beats (THE FULL LISTS RESTORED)
     selected_beat = "N/A"
-    
     if selected_framework == "Save the Cat!":
-        selected_beat = st.selectbox("Which Beat is this?", [
-            "Opening Image", "Theme Stated", "Set-up", "Catalyst", "Debate", 
-            "Break into Two", "B Story", "Fun and Games", "Midpoint", 
-            "Bad Guys Close In", "All is Lost", "Dark Night of the Soul", 
-            "Break into Three", "Finale", "Final Image"
-        ])
-        st.info(f"Targeting: **{selected_beat}**")
-        
+        selected_beat = st.selectbox("Beat", ["Opening Image", "Catalyst", "Debate", "Fun and Games", "All is Lost", "Finale"])
     elif selected_framework == "Dan Harmon's Story Circle":
-        selected_beat = st.selectbox("Which Stage?", [
-            "1. YOU (Zone of Comfort)", "2. NEED (Want Something)", "3. GO (Enter Unfamiliar)", 
-            "4. SEARCH (Adapt)", "5. FIND (Get what they wanted)", "6. TAKE (Pay the price)", 
-            "7. RETURN (Go back)", "8. CHANGE (Master of two worlds)"
-        ])
-        
+        selected_beat = st.selectbox("Stage", ["1. YOU", "2. NEED", "3. GO", "4. SEARCH", "5. FIND", "6. TAKE", "7. RETURN", "8. CHANGE"])
     elif selected_framework == "Fichtean Curve":
-        selected_beat = st.selectbox("Which Crisis Series?", [
-            "Inciting Incident", "Rising Crisis 1", "Rising Crisis 2", 
-            "Rising Crisis 3", "Major Climax", "Falling Action"
-        ])
+        selected_beat = st.selectbox("Crisis", ["Inciting Incident", "Rising Crisis 1", "Rising Crisis 2", "Climax"])
+    
+    if st.button("Logout"):
+        st.session_state.password_correct = False
+        st.rerun()
 
 # Main Area
 st.title("Story Grid Analyzer Pro 🧬")
-st.markdown(f"### Precision Analysis: **{selected_genre}**")
 
-story_input = st.text_area("Paste scene text:", height=350, placeholder="It was a dark and stormy night...")
+story_input = st.text_area(f"Paste your **{selected_genre}** scene:", height=300)
 
-if st.button("🚀 Analyze", type="primary"):
+if st.button("🚀 Analyze Scene", type="primary"):
     if story_input:
-        with st.spinner("Analyzing structure..."):
+        with st.spinner("Calculating Value Shift & Structure..."):
             try:
                 report = analyze_story(story_input, selected_genre, selected_framework, selected_beat)
-                st.markdown("---")
+                
+                # We don't need a divider anymore because the report starts with a huge Header
                 st.markdown(report)
+                
                 html_file = create_html_report(story_input, report, selected_genre, selected_framework)
                 st.download_button("📥 Download Report", html_file, "analysis.html", "text/html")
             except Exception as e:
                 st.error(f"Error: {e}")
-    else:
-        st.warning("Please paste some text first.")
