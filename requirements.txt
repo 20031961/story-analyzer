@@ -3,3 +3,4 @@ google-generativeai
 markdown
 pandas
 openpyxl
+python-docx
