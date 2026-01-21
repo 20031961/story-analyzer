@@ -143,27 +143,28 @@ def analyze_outline(text, genre, framework):
 # --- UI ---
 st.title("Story Grid Analyzer Pro 🧬")
 
-# === 📘 NEW: HOW TO USE GUIDE ===
+# === 📘 GUIDE (REORDERED) ===
 with st.expander("📘 How to Use & Why You Need This"):
     st.markdown("""
     ### **Why use this tool?**
     Writing is emotional; editing requires objective distance. This tool acts as your **Ruthless Editor**, checking your work against proven story structures (Story Grid, Save the Cat, etc.) without the sugar-coating.
     
-    ### **1. The Scene Logger (Micro View)**
-    * **Goal:** Ensure every scene turns on a value change.
-    * **How to use:**
-        1. Select your Genre and Framework in the Sidebar.
-        2. Paste **one chapter** at a time into Tab 1.
-        3. Click **Analyze**.
-        4. If the analysis looks accurate, click **➕ Add to Project Table**.
-        5. Repeat for all chapters to build your "Book Map."
-    
-    ### **2. The Outline Doctor (Macro View)**
+    ### **1. The Outline Doctor (Macro View)**
     * **Goal:** Test your plot structure before you write a single word.
     * **How to use:**
-        1. Switch to Tab 2.
+        1. Start in **Tab 1**.
         2. Paste your entire plot summary (1-2 pages).
         3. Click **Diagnose** to see structural holes and pacing issues.
+    
+    ### **2. The Scene Logger (Micro View)**
+    * **Goal:** Ensure every scene turns on a value change.
+    * **How to use:**
+        1. Switch to **Tab 2** (Scene Logger).
+        2. Select your Genre and Framework in the Sidebar.
+        3. Paste **one chapter** at a time.
+        4. Click **Analyze**.
+        5. If the analysis looks accurate, click **➕ Add to Project Table**.
+        6. Repeat for all chapters to build your "Book Map."
     
     ### **3. The Book Map (Export)**
     * **Pro Tip:** Scroll to the bottom to download your **Project Excel File**. This gives you a master spreadsheet of every scene's value change, beat type, and analysis.
@@ -181,11 +182,30 @@ with st.sidebar:
         st.success("Table cleared!")
         st.rerun()
 
-# TABS
-tab1, tab2 = st.tabs(["🔬 Scene Logger", "🩺 Outline Doctor"])
+# TABS (SWAPPED ORDER)
+tab1, tab2 = st.tabs(["🩺 Outline Doctor", "🔬 Scene Logger"])
 
-# === TAB 1: SCENE LOGGER ===
+# === TAB 1: OUTLINE DOCTOR ===
 with tab1:
+    st.markdown("### 🚑 Structural Health Check")
+    if "None" not in selected_framework:
+        st.info(f"Checking against **{selected_framework}** beats.")
+    else:
+        st.info("Checking for **Global 5 Commandments**.")
+    outline_input = st.text_area("Paste Full Plot Outline:", height=300)
+    if st.button("Diagnose Outline", type="primary"):
+        if outline_input:
+            with st.spinner("Diagnosing..."):
+                try:
+                    diagnosis = analyze_outline(outline_input, selected_genre, selected_framework)
+                    st.markdown(diagnosis)
+                    html_file = create_html_report(diagnosis, "Outline Health Report")
+                    st.download_button("📥 Download Report", html_file, "outline_diagnosis.html", "text/html")
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+# === TAB 2: SCENE LOGGER ===
+with tab2:
     col1, col2 = st.columns([2, 1])
     with col1:
         st.markdown("### 1. Analyze Chapter")
@@ -230,25 +250,6 @@ with tab1:
         st.markdown("---")
         st.markdown(st.session_state.current_report)
 
-# === TAB 2: OUTLINE DOCTOR ===
-with tab2:
-    st.markdown("### 🚑 Structural Health Check")
-    if "None" not in selected_framework:
-        st.info(f"Checking against **{selected_framework}** beats.")
-    else:
-        st.info("Checking for **Global 5 Commandments**.")
-    outline_input = st.text_area("Paste Full Plot Outline:", height=300)
-    if st.button("Diagnose Outline", type="primary"):
-        if outline_input:
-            with st.spinner("Diagnosing..."):
-                try:
-                    diagnosis = analyze_outline(outline_input, selected_genre, selected_framework)
-                    st.markdown(diagnosis)
-                    html_file = create_html_report(diagnosis, "Outline Health Report")
-                    st.download_button("📥 Download Report", html_file, "outline_diagnosis.html", "text/html")
-                except Exception as e:
-                    st.error(f"Error: {e}")
-
 # === GLOBAL PROJECT TABLE ===
 st.divider()
 st.header("📊 Project Table (Book Map)")
@@ -263,4 +264,4 @@ if len(st.session_state.chapter_log) > 0:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 else:
-    st.info("No chapters logged yet. Analyze a scene in Tab 1 and click 'Add to Project Table'.")
+    st.info("No chapters logged yet. Analyze a scene in Tab 2 and click 'Add to Project Table'.")
