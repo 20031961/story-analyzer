@@ -3,8 +3,8 @@ import google.generativeai as genai
 import markdown
 import pandas as pd
 import io
-import re
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+import docx
 
 # 1. SETUP
 st.set_page_config(
@@ -45,6 +45,34 @@ try:
 except:
     st.error("⚠️ API Key missing. Please check Secrets.")
 
+# --- HELPER: READ FILE ---
+def read_file(uploaded_file):
+    """Extracts text from uploaded .txt or .docx files"""
+    if uploaded_file is None:
+        return ""
+    
+    # Handle .docx
+    if uploaded_file.name.endswith(".docx"):
+        try:
+            doc = docx.Document(uploaded_file)
+            full_text = []
+            for para in doc.paragraphs:
+                full_text.append(para.text)
+            return "\n".join(full_text)
+        except Exception as e:
+            st.error(f"Error reading .docx file: {e}")
+            return ""
+            
+    # Handle .txt
+    elif uploaded_file.name.endswith(".txt"):
+        try:
+            return uploaded_file.read().decode("utf-8")
+        except Exception as e:
+            st.error(f"Error reading .txt file: {e}")
+            return ""
+    
+    return ""
+
 # --- HELPER: DOWNLOAD HTML REPORT ---
 def create_html_report(content, title):
     html_content = markdown.markdown(content, extensions=['tables'])
@@ -76,18 +104,13 @@ def create_html_report(content, title):
 
 # --- HELPER: CLEAN MARKDOWN ---
 def clean_markdown_text(text):
-    if not isinstance(text, str):
-        return text
-    # Remove Bold/Italic markers (** or *)
+    if not isinstance(text, str): return text
     text = text.replace('**', '').replace('__', '')
-    # Remove Header markers (###)
     text = text.replace('### ', '').replace('## ', '').replace('# ', '')
-    # Remove bullet points specific syntax if needed, but keeping dots is usually fine
     return text
 
 # --- HELPER: CREATE PRETTY EXCEL ---
 def to_excel(df):
-    # 1. Clean the Data first (Make a copy so we don't break the web view)
     export_df = df.copy()
     for col in export_df.columns:
         export_df[col] = export_df[col].apply(clean_markdown_text)
@@ -98,51 +121,36 @@ def to_excel(df):
         workbook = writer.book
         worksheet = writer.sheets['Story Map']
         
-        # --- STYLES ---
-        # A. Header Style (Teal Background, White Bold Text)
+        # Styles
         header_fill = PatternFill(start_color="008080", end_color="008080", fill_type="solid")
         header_font = Font(color="FFFFFF", bold=True, size=12, name="Calibri")
-        
-        # B. Row Styles (Alternating White / Light Grey)
-        row_fill_even = PatternFill(start_color="F0F8FF", end_color="F0F8FF", fill_type="solid") # AliceBlue
-        
-        # C. Borders
-        thin_border = Border(left=Side(style='thin', color="D3D3D3"), 
-                             right=Side(style='thin', color="D3D3D3"), 
-                             top=Side(style='thin', color="D3D3D3"), 
-                             bottom=Side(style='thin', color="D3D3D3"))
+        row_fill_even = PatternFill(start_color="F0F8FF", end_color="F0F8FF", fill_type="solid") 
+        thin_border = Border(left=Side(style='thin', color="D3D3D3"), right=Side(style='thin', color="D3D3D3"), top=Side(style='thin', color="D3D3D3"), bottom=Side(style='thin', color="D3D3D3"))
 
-        # --- APPLY STYLES ---
-        # 1. Format Headers
         for cell in worksheet[1]:
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = Alignment(horizontal="center", vertical="center")
             cell.border = thin_border
 
-        # 2. Format Data Rows (Zebra Striping)
         for row_idx, row in enumerate(worksheet.iter_rows(min_row=2), start=2):
             for cell in row:
                 cell.alignment = Alignment(wrap_text=True, vertical='top')
                 cell.border = thin_border
                 cell.font = Font(name="Calibri", size=11)
-                # Apply color to even rows
-                if row_idx % 2 == 0:
-                    cell.fill = row_fill_even
+                if row_idx % 2 == 0: cell.fill = row_fill_even
 
-        # 3. Auto-Adjust Column Widths
         for i, col in enumerate(export_df.columns):
-            column_len = 25 # Default width
-            if "Analysis" in col: column_len = 80 # Make analysis wide
+            column_len = 25 
+            if "Analysis" in col: column_len = 80 
             elif "Chapter" in col: column_len = 20
             elif "Beat" in col: column_len = 20
-            
             worksheet.column_dimensions[chr(65 + i)].width = column_len
 
     processed_data = output.getvalue()
     return processed_data
 
-# --- BRAIN 1: SCENE ANALYZER ---
+# --- BRAINS ---
 def analyze_scene(text, genre, framework, beat):
     prompt = f"""
     You are a ruthless Story Grid editor. Analyze this SCENE.
@@ -159,7 +167,6 @@ def analyze_scene(text, genre, framework, beat):
     model = genai.GenerativeModel('gemini-flash-latest')
     return model.generate_content(prompt).text
 
-# --- BRAIN 2: OUTLINE DOCTOR ---
 def analyze_outline(text, genre, framework):
     style_guide = """
     FORMATTING RULES:
@@ -193,31 +200,21 @@ def analyze_outline(text, genre, framework):
 # --- UI ---
 st.title("Story Grid Analyzer Pro 🧬")
 
-# === 📘 GUIDE ===
 with st.expander("📘 How to Use & Why You Need This"):
     st.markdown("""
     ### **Why use this tool?**
-    Writing is emotional; editing requires objective distance. This tool acts as your **Ruthless Editor**, checking your work against proven story structures (Story Grid, Save the Cat, etc.) without the sugar-coating.
+    Acts as your **Ruthless Editor**, checking your work against proven story structures.
     
     ### **1. The Outline Doctor (Macro View)**
-    * **Goal:** Test your plot structure before you write a single word.
-    * **How to use:**
-        1. Start in **Tab 1**.
-        2. Paste your entire plot summary (1-2 pages).
-        3. Click **Diagnose** to see structural holes and pacing issues.
+    * **Goal:** Test your plot structure.
+    * **How:** Upload your outline (.docx/.txt) or paste it in Tab 1, then click Diagnose.
     
     ### **2. The Scene Logger (Micro View)**
     * **Goal:** Ensure every scene turns on a value change.
-    * **How to use:**
-        1. Switch to **Tab 2** (Scene Logger).
-        2. Select your Genre and Framework in the Sidebar.
-        3. Paste **one chapter** at a time.
-        4. Click **Analyze**.
-        5. If the analysis looks accurate, click **➕ Add to Project Table**.
-        6. Repeat for all chapters to build your "Book Map."
+    * **How:** Upload a chapter (.docx/.txt) in Tab 2, click Analyze, then "Add to Project Table."
     
     ### **3. The Book Map (Export)**
-    * **Pro Tip:** Scroll to the bottom to download your **Project Excel File**. This gives you a master spreadsheet of every scene's value change, beat type, and analysis.
+    * **Pro Tip:** Download your Project Excel File at the bottom of the page.
     """)
 
 with st.sidebar:
@@ -226,7 +223,6 @@ with st.sidebar:
     selected_genre = st.selectbox("Genre", ["Action/Thriller", "Love Story", "Horror", "Mystery/Crime", "Sci-Fi/Fantasy", "Drama", "Non-Fiction"])
     selected_framework = st.selectbox("Structure Framework", ["None (Pure Story Grid)", "Save the Cat!", "Dan Harmon's Story Circle", "Fichtean Curve"])
     st.divider()
-    st.markdown("### 🗑️ Project Data")
     if st.button("Clear Project Table"):
         st.session_state.chapter_log = []
         st.success("Table cleared!")
@@ -242,7 +238,18 @@ with tab1:
         st.info(f"Checking against **{selected_framework}** beats.")
     else:
         st.info("Checking for **Global 5 Commandments**.")
-    outline_input = st.text_area("Paste Full Plot Outline:", height=300)
+    
+    # 1. FILE UPLOAD LOGIC
+    uploaded_outline = st.file_uploader("📂 Upload Outline (.docx or .txt)", type=["docx", "txt"], key="outline_file")
+    
+    # 2. DETERMINE INPUT TEXT
+    outline_text_area = ""
+    if uploaded_outline:
+        outline_text_area = read_file(uploaded_outline)
+        st.success(f"Loaded: {uploaded_outline.name}")
+    
+    outline_input = st.text_area("Or Paste Text Below:", value=outline_text_area, height=300)
+    
     if st.button("Diagnose Outline", type="primary"):
         if outline_input:
             with st.spinner("Diagnosing..."):
@@ -269,7 +276,18 @@ with tab2:
             selected_beat = st.selectbox("Beat", beat_options)
         else:
             selected_beat = "General Scene"
-        scene_input = st.text_area("Paste Text:", height=200, key="scene_in")
+        
+        # 1. FILE UPLOAD LOGIC
+        uploaded_scene = st.file_uploader("📂 Upload Chapter (.docx or .txt)", type=["docx", "txt"], key="scene_file")
+        
+        # 2. DETERMINE INPUT TEXT
+        scene_text_area = ""
+        if uploaded_scene:
+            scene_text_area = read_file(uploaded_scene)
+            st.success(f"Loaded: {uploaded_scene.name}")
+
+        scene_input = st.text_area("Or Paste Text Below:", value=scene_text_area, height=200, key="scene_in")
+
         if st.button("🚀 Analyze Scene", type="primary"):
             if scene_input:
                 with st.spinner("Analyzing..."):
