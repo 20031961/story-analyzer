@@ -87,34 +87,17 @@ def analyze_scene(text, genre, framework, beat):
 
 # --- BRAIN 2: OUTLINE DOCTOR ---
 def analyze_outline(text, genre, framework):
-    # Prompt logic
     if "None" not in framework:
         prompt = f"""
         Analyze this PLOT OUTLINE against {framework} structure.
-        STYLE: RUTHLESSLY CONCISE. No fluff. Use Emojis for status.
-        
-        OUTPUT FORMAT: 
-        1. HEADER: "## Structural Health Score: [Score]/10"
-        2. GAP ANALYSIS:
-           - List key beats of {framework}.
-           - Mark each: ✅ FOUND or ❌ MISSING/WEAK.
-           - If missing, provide ONE short fix idea.
-        3. PACING CHECK: 1 sentence verdict.
+        STYLE: RUTHLESSLY CONCISE. No fluff. Use Emojis.
+        OUTPUT: Structural Health Score, Gap Analysis, Pacing Check.
         """
     else:
         prompt = f"""
         Analyze this PLOT OUTLINE for Global 5 Commandments.
         STYLE: RUTHLESSLY CONCISE. No fluff. Use Emojis.
-        
-        OUTPUT FORMAT:
-        1. HEADER: "## Narrative Arc Score: [Score]/10"
-        2. GLOBAL 5 CHECK:
-           - Inciting Incident: ✅/❌
-           - Turning Point: ✅/❌
-           - Crisis: ✅/❌
-           - Climax: ✅/❌
-           - Resolution: ✅/❌
-        3. GAP ANALYSIS: 1 sentence summary of what is missing.
+        OUTPUT: Narrative Arc Score, Global 5 Check, Gap Analysis.
         """
     prompt += f"\nOUTLINE TEXT: {text}"
     model = genai.GenerativeModel('gemini-flash-latest')
@@ -174,6 +157,8 @@ with tab1:
         st.markdown("### 2. Review & Log")
         if st.session_state.current_report:
             st.info("Analysis Ready below ⬇️")
+            
+            # BUTTON 1: Add to Table
             if st.button("➕ Add to Project Table"):
                 new_entry = {
                     "Chapter": chapter_title,
@@ -183,6 +168,15 @@ with tab1:
                 }
                 st.session_state.chapter_log.append(new_entry)
                 st.success(f"Saved {chapter_title}!")
+            
+            # BUTTON 2: Download Report (RESTORED!)
+            html_report = create_html_report(st.session_state.current_report, f"Analysis: {chapter_title}")
+            st.download_button(
+                label="📥 Download Report",
+                data=html_report,
+                file_name=f"{chapter_title}_analysis.html",
+                mime="text/html"
+            )
         else:
             st.markdown("*Run analysis to see results.*")
 
@@ -216,14 +210,7 @@ with tab2:
                 try:
                     diagnosis = analyze_outline(outline_input, selected_genre, selected_framework)
                     st.markdown(diagnosis)
-                    
-                    # --- NEW DOWNLOAD BUTTON ---
                     html_file = create_html_report(diagnosis, "Outline Health Report")
-                    st.download_button(
-                        label="📥 Download Outline Report",
-                        data=html_file,
-                        file_name="outline_diagnosis.html",
-                        mime="text/html"
-                    )
+                    st.download_button("📥 Download Report", html_file, "outline_diagnosis.html", "text/html")
                 except Exception as e:
                     st.error(f"Error: {e}")
