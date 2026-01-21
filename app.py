@@ -44,17 +44,20 @@ except:
 
 # --- HELPER: DOWNLOAD HTML ---
 def create_html_report(content, title):
+    # We add some extra CSS here to make sure lists look good
     html_content = markdown.markdown(content)
     return f"""
     <html>
     <head>
         <style>
-            body {{ font-family: 'Helvetica', 'Arial', sans-serif; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }}
-            h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; text-align: center; }}
-            h2 {{ color: #e67e22; margin-top: 25px; border-bottom: 1px solid #eee; }}
-            strong {{ color: #2980b9; }}
-            ul {{ line-height: 1.6; }}
-            .footer {{ margin-top: 40px; font-size: 0.8em; color: #999; border-top: 1px solid #eee; padding-top: 10px; text-align: center; }}
+            body {{ font-family: 'Helvetica', 'Arial', sans-serif; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }}
+            h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; text-align: center; padding-bottom: 10px; }}
+            h2 {{ color: #e67e22; margin-top: 30px; border-bottom: 1px solid #eee; padding-bottom: 5px; }}
+            h3 {{ color: #2980b9; margin-top: 20px; }}
+            ul {{ margin-bottom: 20px; }}
+            li {{ margin-bottom: 8px; }}
+            strong {{ color: #2c3e50; }}
+            .footer {{ margin-top: 50px; font-size: 0.8em; color: #999; border-top: 1px solid #eee; padding-top: 10px; text-align: center; }}
         </style>
     </head>
     <body>
@@ -85,19 +88,50 @@ def analyze_scene(text, genre, framework, beat):
     model = genai.GenerativeModel('gemini-flash-latest')
     return model.generate_content(prompt).text
 
-# --- BRAIN 2: OUTLINE DOCTOR ---
+# --- BRAIN 2: OUTLINE DOCTOR (UPDATED FORMATTING) ---
 def analyze_outline(text, genre, framework):
+    # Common Style Guide for both options
+    style_guide = """
+    FORMATTING RULES:
+    - Use Markdown Headers (##) for sections.
+    - Use Bullet Points (*) for lists.
+    - NEVER use pipes (|) to separate text.
+    - Put each point on a NEW LINE.
+    - Bold key terms.
+    """
+
     if "None" not in framework:
         prompt = f"""
         Analyze this PLOT OUTLINE against {framework} structure.
-        STYLE: RUTHLESSLY CONCISE. No fluff. Use Emojis.
-        OUTPUT: Structural Health Score, Gap Analysis, Pacing Check.
+        {style_guide}
+        
+        OUTPUT STRUCTURE: 
+        ## 📊 Structural Health Score: [Score]/10
+        
+        ## 🩺 Gap Analysis
+        (List the required beats of {framework}. Use a bullet list.)
+        * **[Beat Name]:** [Status Emoji] - [Analysis]
+        
+        ## ⚡ Pacing Check
+        * [One clear sentence on pacing]
         """
     else:
         prompt = f"""
         Analyze this PLOT OUTLINE for Global 5 Commandments.
-        STYLE: RUTHLESSLY CONCISE. No fluff. Use Emojis.
-        OUTPUT: Narrative Arc Score, Global 5 Check, Gap Analysis.
+        {style_guide}
+        
+        OUTPUT STRUCTURE:
+        ## 📊 Narrative Arc Score: [Score]/10
+        
+        ## 🌍 Global 5 Commandments Check
+        * **Inciting Incident:** [Status Emoji] - [Analysis]
+        * **Turning Point:** [Status Emoji] - [Analysis]
+        * **Crisis:** [Status Emoji] - [Analysis]
+        * **Climax:** [Status Emoji] - [Analysis]
+        * **Resolution:** [Status Emoji] - [Analysis]
+        
+        ## 💡 Editor's Notes
+        * [One clear sentence on what is missing]
         """
     prompt += f"\nOUTLINE TEXT: {text}"
     model = genai.GenerativeModel('gemini-flash-latest')
@@ -158,7 +192,6 @@ with tab1:
         if st.session_state.current_report:
             st.info("Analysis Ready below ⬇️")
             
-            # BUTTON 1: Add to Table
             if st.button("➕ Add to Project Table"):
                 new_entry = {
                     "Chapter": chapter_title,
@@ -169,7 +202,6 @@ with tab1:
                 st.session_state.chapter_log.append(new_entry)
                 st.success(f"Saved {chapter_title}!")
             
-            # BUTTON 2: Download Report (RESTORED!)
             html_report = create_html_report(st.session_state.current_report, f"Analysis: {chapter_title}")
             st.download_button(
                 label="📥 Download Report",
