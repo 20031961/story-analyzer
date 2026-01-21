@@ -21,6 +21,7 @@ def check_password():
     st.title("🔒 Login Required")
     password = st.text_input("Enter Password", type="password")
     if st.button("Enter"):
+        # SET YOUR PASSWORD HERE
         if password == "story2026": 
             st.session_state.password_correct = True
             st.rerun()
@@ -45,7 +46,9 @@ except:
 
 # --- HELPER: DOWNLOAD HTML REPORT ---
 def create_html_report(content, title):
-    html_content = markdown.markdown(content)
+    # CRITICAL FIX: Enable 'tables' extension so pipes | become grids
+    html_content = markdown.markdown(content, extensions=['tables'])
+    
     return f"""
     <html>
     <head>
@@ -57,6 +60,13 @@ def create_html_report(content, title):
             ul {{ margin-bottom: 20px; }}
             li {{ margin-bottom: 8px; }}
             strong {{ color: #2c3e50; }}
+            
+            /* TABLE STYLING */
+            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px; font-size: 0.9em; }}
+            th, td {{ border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top; }}
+            th {{ background-color: #f8f9fa; color: #2c3e50; font-weight: bold; }}
+            tr:nth-child(even) {{ background-color: #f9f9f9; }}
+            
             .footer {{ margin-top: 50px; font-size: 0.8em; color: #999; border-top: 1px solid #eee; padding-top: 10px; text-align: center; }}
         </style>
     </head>
@@ -77,20 +87,14 @@ def to_excel(df):
         worksheet = writer.sheets['Story Map']
         
         # Format Logic:
-        # 1. Loop through columns to set width
         for i, col in enumerate(df.columns):
             column_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
-            # Cap the width at 100 characters so it doesn't get crazy wide
             if column_len > 100: column_len = 100
             if column_len < 20: column_len = 20
-            
-            # The "Full Analysis" column needs to be extra wide
-            if "Analysis" in col:
-                column_len = 80
-                
+            if "Analysis" in col: column_len = 80     
             worksheet.column_dimensions[chr(65 + i)].width = column_len
 
-        # 2. Add text wrapping to the whole sheet
+        # Wrap text
         from openpyxl.styles import Alignment
         for row in worksheet.iter_rows():
             for cell in row:
@@ -103,18 +107,19 @@ def to_excel(df):
 def analyze_scene(text, genre, framework, beat):
     prompt = f"""
     You are a ruthless Story Grid editor. Analyze this SCENE.
-    STYLE: RUTHLESSLY CONCISE. Bullet points. Visual Scoreboard.
+    STYLE: RUTHLESSLY CONCISE. Use Markdown Tables for data. Bullet points for lists.
     
     CONTEXT: Genre: {genre} | Framework: {framework} | Beat: {beat}
     
     OUTPUT FORMAT:
     1. HEADER: "# [Emoji] [Start Value] ➔ [End Value]"
     2. THE 5 COMMANDMENTS (Bullet points)
+    3. VISUAL SCOREBOARD (Create a Markdown Table with columns: Element, Start Value, End Value, Notes)
     """
     if "None" not in framework:
-        prompt += f"\n3. FRAMEWORK CHECK ({framework}): Verdict (✅ PASS / ❌ FAIL) and 1 sentence reason."
+        prompt += f"\n4. FRAMEWORK CHECK ({framework}): Verdict (✅ PASS / ❌ FAIL) and 1 sentence reason."
     
-    prompt += f"\n4. GENRE CHECK: Gold Star Moment 🌟\n\nSTORY TEXT: {text}"
+    prompt += f"\n5. GENRE CHECK: Gold Star Moment 🌟\n\nSTORY TEXT: {text}"
     
     model = genai.GenerativeModel('gemini-flash-latest')
     return model.generate_content(prompt).text
@@ -125,7 +130,7 @@ def analyze_outline(text, genre, framework):
     FORMATTING RULES:
     - Use Markdown Headers (##) for sections.
     - Use Bullet Points (*) for lists.
-    - NEVER use pipes (|) to separate text.
+    - Use Markdown Tables for comparisons.
     - Bold key terms.
     """
     
