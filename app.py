@@ -2,6 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import markdown
 import pandas as pd
+import io
 
 # 1. SETUP
 st.set_page_config(
@@ -42,9 +43,8 @@ try:
 except:
     st.error("⚠️ API Key missing. Please check Secrets.")
 
-# --- HELPER: DOWNLOAD HTML ---
+# --- HELPER: DOWNLOAD HTML REPORT ---
 def create_html_report(content, title):
-    # We add some extra CSS here to make sure lists look good
     html_content = markdown.markdown(content)
     return f"""
     <html>
@@ -68,6 +68,37 @@ def create_html_report(content, title):
     </html>
     """
 
+# --- HELPER: CREATE FORMATTED EXCEL ---
+def to_excel(df):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Story Map')
+        workbook = writer.book
+        worksheet = writer.sheets['Story Map']
+        
+        # Format Logic:
+        # 1. Loop through columns to set width
+        for i, col in enumerate(df.columns):
+            column_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
+            # Cap the width at 100 characters so it doesn't get crazy wide
+            if column_len > 100: column_len = 100
+            if column_len < 20: column_len = 20
+            
+            # The "Full Analysis" column needs to be extra wide
+            if "Analysis" in col:
+                column_len = 80
+                
+            worksheet.column_dimensions[chr(65 + i)].width = column_len
+
+        # 2. Add text wrapping to the whole sheet
+        from openpyxl.styles import Alignment
+        for row in worksheet.iter_rows():
+            for cell in row:
+                cell.alignment = Alignment(wrap_text=True, vertical='top')
+                
+    processed_data = output.getvalue()
+    return processed_data
+
 # --- BRAIN 1: SCENE ANALYZER ---
 def analyze_scene(text, genre, framework, beat):
     prompt = f"""
@@ -88,50 +119,33 @@ def analyze_scene(text, genre, framework, beat):
     model = genai.GenerativeModel('gemini-flash-latest')
     return model.generate_content(prompt).text
 
-# --- BRAIN 2: OUTLINE DOCTOR (UPDATED FORMATTING) ---
+# --- BRAIN 2: OUTLINE DOCTOR ---
 def analyze_outline(text, genre, framework):
-    # Common Style Guide for both options
     style_guide = """
     FORMATTING RULES:
     - Use Markdown Headers (##) for sections.
     - Use Bullet Points (*) for lists.
     - NEVER use pipes (|) to separate text.
-    - Put each point on a NEW LINE.
     - Bold key terms.
     """
-
+    
     if "None" not in framework:
         prompt = f"""
         Analyze this PLOT OUTLINE against {framework} structure.
         {style_guide}
-        
         OUTPUT STRUCTURE: 
         ## 📊 Structural Health Score: [Score]/10
-        
-        ## 🩺 Gap Analysis
-        (List the required beats of {framework}. Use a bullet list.)
-        * **[Beat Name]:** [Status Emoji] - [Analysis]
-        
+        ## 🩺 Gap Analysis (List beats of {framework})
         ## ⚡ Pacing Check
-        * [One clear sentence on pacing]
         """
     else:
         prompt = f"""
         Analyze this PLOT OUTLINE for Global 5 Commandments.
         {style_guide}
-        
         OUTPUT STRUCTURE:
         ## 📊 Narrative Arc Score: [Score]/10
-        
         ## 🌍 Global 5 Commandments Check
-        * **Inciting Incident:** [Status Emoji] - [Analysis]
-        * **Turning Point:** [Status Emoji] - [Analysis]
-        * **Crisis:** [Status Emoji] - [Analysis]
-        * **Climax:** [Status Emoji] - [Analysis]
-        * **Resolution:** [Status Emoji] - [Analysis]
-        
         ## 💡 Editor's Notes
-        * [One clear sentence on what is missing]
         """
     prompt += f"\nOUTLINE TEXT: {text}"
     model = genai.GenerativeModel('gemini-flash-latest')
@@ -159,7 +173,6 @@ tab1, tab2 = st.tabs(["🔬 Scene Logger", "🩺 Outline Doctor"])
 # === TAB 1: SCENE LOGGER ===
 with tab1:
     col1, col2 = st.columns([2, 1])
-    
     with col1:
         st.markdown("### 1. Analyze Chapter")
         chapter_title = st.text_input("Chapter Name", placeholder="e.g. Chapter 1")
@@ -191,7 +204,6 @@ with tab1:
         st.markdown("### 2. Review & Log")
         if st.session_state.current_report:
             st.info("Analysis Ready below ⬇️")
-            
             if st.button("➕ Add to Project Table"):
                 new_entry = {
                     "Chapter": chapter_title,
@@ -203,28 +215,13 @@ with tab1:
                 st.success(f"Saved {chapter_title}!")
             
             html_report = create_html_report(st.session_state.current_report, f"Analysis: {chapter_title}")
-            st.download_button(
-                label="📥 Download Report",
-                data=html_report,
-                file_name=f"{chapter_title}_analysis.html",
-                mime="text/html"
-            )
+            st.download_button("📥 Download Report", html_report, f"{chapter_title}_analysis.html", "text/html")
         else:
             st.markdown("*Run analysis to see results.*")
 
     if st.session_state.current_report:
         st.markdown("---")
         st.markdown(st.session_state.current_report)
-
-    st.markdown("---")
-    st.subheader("📊 Project Table")
-    if len(st.session_state.chapter_log) > 0:
-        df = pd.DataFrame(st.session_state.chapter_log)
-        st.dataframe(df, use_container_width=True)
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download CSV", csv, "novel_map.csv", "text/csv")
-    else:
-        st.caption("No chapters logged yet.")
 
 # === TAB 2: OUTLINE DOCTOR ===
 with tab2:
@@ -246,3 +243,22 @@ with tab2:
                     st.download_button("📥 Download Report", html_file, "outline_diagnosis.html", "text/html")
                 except Exception as e:
                     st.error(f"Error: {e}")
+
+# === GLOBAL PROJECT TABLE ===
+st.divider()
+st.header("📊 Project Table (Book Map)")
+
+if len(st.session_state.chapter_log) > 0:
+    df = pd.DataFrame(st.session_state.chapter_log)
+    st.dataframe(df, use_container_width=True)
+    
+    # EXCEL EXPORT LOGIC
+    excel_data = to_excel(df)
+    st.download_button(
+        label="📥 Download Excel (.xlsx)",
+        data=excel_data,
+        file_name="story_grid_project.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+else:
+    st.info("No chapters logged yet. Analyze a scene in Tab 1 and click 'Add to Project Table'.")
