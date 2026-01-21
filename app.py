@@ -3,6 +3,8 @@ import google.generativeai as genai
 import markdown
 import pandas as pd
 import io
+import re
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 
 # 1. SETUP
 st.set_page_config(
@@ -72,23 +74,71 @@ def create_html_report(content, title):
     </html>
     """
 
-# --- HELPER: CREATE FORMATTED EXCEL ---
+# --- HELPER: CLEAN MARKDOWN ---
+def clean_markdown_text(text):
+    if not isinstance(text, str):
+        return text
+    # Remove Bold/Italic markers (** or *)
+    text = text.replace('**', '').replace('__', '')
+    # Remove Header markers (###)
+    text = text.replace('### ', '').replace('## ', '').replace('# ', '')
+    # Remove bullet points specific syntax if needed, but keeping dots is usually fine
+    return text
+
+# --- HELPER: CREATE PRETTY EXCEL ---
 def to_excel(df):
+    # 1. Clean the Data first (Make a copy so we don't break the web view)
+    export_df = df.copy()
+    for col in export_df.columns:
+        export_df[col] = export_df[col].apply(clean_markdown_text)
+
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Story Map')
+        export_df.to_excel(writer, index=False, sheet_name='Story Map')
         workbook = writer.book
         worksheet = writer.sheets['Story Map']
-        for i, col in enumerate(df.columns):
-            column_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
-            if column_len > 100: column_len = 100
-            if column_len < 20: column_len = 20
-            if "Analysis" in col: column_len = 80     
-            worksheet.column_dimensions[chr(65 + i)].width = column_len
-        from openpyxl.styles import Alignment
-        for row in worksheet.iter_rows():
+        
+        # --- STYLES ---
+        # A. Header Style (Teal Background, White Bold Text)
+        header_fill = PatternFill(start_color="008080", end_color="008080", fill_type="solid")
+        header_font = Font(color="FFFFFF", bold=True, size=12, name="Calibri")
+        
+        # B. Row Styles (Alternating White / Light Grey)
+        row_fill_even = PatternFill(start_color="F0F8FF", end_color="F0F8FF", fill_type="solid") # AliceBlue
+        
+        # C. Borders
+        thin_border = Border(left=Side(style='thin', color="D3D3D3"), 
+                             right=Side(style='thin', color="D3D3D3"), 
+                             top=Side(style='thin', color="D3D3D3"), 
+                             bottom=Side(style='thin', color="D3D3D3"))
+
+        # --- APPLY STYLES ---
+        # 1. Format Headers
+        for cell in worksheet[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = thin_border
+
+        # 2. Format Data Rows (Zebra Striping)
+        for row_idx, row in enumerate(worksheet.iter_rows(min_row=2), start=2):
             for cell in row:
                 cell.alignment = Alignment(wrap_text=True, vertical='top')
+                cell.border = thin_border
+                cell.font = Font(name="Calibri", size=11)
+                # Apply color to even rows
+                if row_idx % 2 == 0:
+                    cell.fill = row_fill_even
+
+        # 3. Auto-Adjust Column Widths
+        for i, col in enumerate(export_df.columns):
+            column_len = 25 # Default width
+            if "Analysis" in col: column_len = 80 # Make analysis wide
+            elif "Chapter" in col: column_len = 20
+            elif "Beat" in col: column_len = 20
+            
+            worksheet.column_dimensions[chr(65 + i)].width = column_len
+
     processed_data = output.getvalue()
     return processed_data
 
@@ -143,7 +193,7 @@ def analyze_outline(text, genre, framework):
 # --- UI ---
 st.title("Story Grid Analyzer Pro 🧬")
 
-# === 📘 GUIDE (REORDERED) ===
+# === 📘 GUIDE ===
 with st.expander("📘 How to Use & Why You Need This"):
     st.markdown("""
     ### **Why use this tool?**
@@ -182,7 +232,7 @@ with st.sidebar:
         st.success("Table cleared!")
         st.rerun()
 
-# TABS (SWAPPED ORDER)
+# TABS
 tab1, tab2 = st.tabs(["🩺 Outline Doctor", "🔬 Scene Logger"])
 
 # === TAB 1: OUTLINE DOCTOR ===
