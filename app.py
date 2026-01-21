@@ -21,7 +21,6 @@ def check_password():
     st.title("🔒 Login Required")
     password = st.text_input("Enter Password", type="password")
     if st.button("Enter"):
-        # SET YOUR PASSWORD HERE
         if password == "story2026": 
             st.session_state.password_correct = True
             st.rerun()
@@ -46,9 +45,7 @@ except:
 
 # --- HELPER: DOWNLOAD HTML REPORT ---
 def create_html_report(content, title):
-    # CRITICAL FIX: Enable 'tables' extension so pipes | become grids
     html_content = markdown.markdown(content, extensions=['tables'])
-    
     return f"""
     <html>
     <head>
@@ -60,13 +57,10 @@ def create_html_report(content, title):
             ul {{ margin-bottom: 20px; }}
             li {{ margin-bottom: 8px; }}
             strong {{ color: #2c3e50; }}
-            
-            /* TABLE STYLING */
             table {{ width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px; font-size: 0.9em; }}
             th, td {{ border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top; }}
             th {{ background-color: #f8f9fa; color: #2c3e50; font-weight: bold; }}
             tr:nth-child(even) {{ background-color: #f9f9f9; }}
-            
             .footer {{ margin-top: 50px; font-size: 0.8em; color: #999; border-top: 1px solid #eee; padding-top: 10px; text-align: center; }}
         </style>
     </head>
@@ -85,21 +79,16 @@ def to_excel(df):
         df.to_excel(writer, index=False, sheet_name='Story Map')
         workbook = writer.book
         worksheet = writer.sheets['Story Map']
-        
-        # Format Logic:
         for i, col in enumerate(df.columns):
             column_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
             if column_len > 100: column_len = 100
             if column_len < 20: column_len = 20
             if "Analysis" in col: column_len = 80     
             worksheet.column_dimensions[chr(65 + i)].width = column_len
-
-        # Wrap text
         from openpyxl.styles import Alignment
         for row in worksheet.iter_rows():
             for cell in row:
                 cell.alignment = Alignment(wrap_text=True, vertical='top')
-                
     processed_data = output.getvalue()
     return processed_data
 
@@ -108,9 +97,7 @@ def analyze_scene(text, genre, framework, beat):
     prompt = f"""
     You are a ruthless Story Grid editor. Analyze this SCENE.
     STYLE: RUTHLESSLY CONCISE. Use Markdown Tables for data. Bullet points for lists.
-    
     CONTEXT: Genre: {genre} | Framework: {framework} | Beat: {beat}
-    
     OUTPUT FORMAT:
     1. HEADER: "# [Emoji] [Start Value] ➔ [End Value]"
     2. THE 5 COMMANDMENTS (Bullet points)
@@ -118,9 +105,7 @@ def analyze_scene(text, genre, framework, beat):
     """
     if "None" not in framework:
         prompt += f"\n4. FRAMEWORK CHECK ({framework}): Verdict (✅ PASS / ❌ FAIL) and 1 sentence reason."
-    
     prompt += f"\n5. GENRE CHECK: Gold Star Moment 🌟\n\nSTORY TEXT: {text}"
-    
     model = genai.GenerativeModel('gemini-flash-latest')
     return model.generate_content(prompt).text
 
@@ -133,7 +118,6 @@ def analyze_outline(text, genre, framework):
     - Use Markdown Tables for comparisons.
     - Bold key terms.
     """
-    
     if "None" not in framework:
         prompt = f"""
         Analyze this PLOT OUTLINE against {framework} structure.
@@ -159,12 +143,37 @@ def analyze_outline(text, genre, framework):
 # --- UI ---
 st.title("Story Grid Analyzer Pro 🧬")
 
+# === 📘 NEW: HOW TO USE GUIDE ===
+with st.expander("📘 How to Use & Why You Need This"):
+    st.markdown("""
+    ### **Why use this tool?**
+    Writing is emotional; editing requires objective distance. This tool acts as your **Ruthless Editor**, checking your work against proven story structures (Story Grid, Save the Cat, etc.) without the sugar-coating.
+    
+    ### **1. The Scene Logger (Micro View)**
+    * **Goal:** Ensure every scene turns on a value change.
+    * **How to use:**
+        1. Select your Genre and Framework in the Sidebar.
+        2. Paste **one chapter** at a time into Tab 1.
+        3. Click **Analyze**.
+        4. If the analysis looks accurate, click **➕ Add to Project Table**.
+        5. Repeat for all chapters to build your "Book Map."
+    
+    ### **2. The Outline Doctor (Macro View)**
+    * **Goal:** Test your plot structure before you write a single word.
+    * **How to use:**
+        1. Switch to Tab 2.
+        2. Paste your entire plot summary (1-2 pages).
+        3. Click **Diagnose** to see structural holes and pacing issues.
+    
+    ### **3. The Book Map (Export)**
+    * **Pro Tip:** Scroll to the bottom to download your **Project Excel File**. This gives you a master spreadsheet of every scene's value change, beat type, and analysis.
+    """)
+
 with st.sidebar:
     st.header("🎛️ Project Settings")
     st.caption("Logged in")
     selected_genre = st.selectbox("Genre", ["Action/Thriller", "Love Story", "Horror", "Mystery/Crime", "Sci-Fi/Fantasy", "Drama", "Non-Fiction"])
     selected_framework = st.selectbox("Structure Framework", ["None (Pure Story Grid)", "Save the Cat!", "Dan Harmon's Story Circle", "Fichtean Curve"])
-    
     st.divider()
     st.markdown("### 🗑️ Project Data")
     if st.button("Clear Project Table"):
@@ -181,20 +190,16 @@ with tab1:
     with col1:
         st.markdown("### 1. Analyze Chapter")
         chapter_title = st.text_input("Chapter Name", placeholder="e.g. Chapter 1")
-        
         beat_options = ["N/A"]
         if "Save the Cat" in selected_framework:
             beat_options = ["Opening Image", "Catalyst", "Debate", "Fun and Games", "All is Lost", "Finale"]
         elif "Story Circle" in selected_framework:
             beat_options = ["1. YOU", "2. NEED", "3. GO", "4. SEARCH", "5. FIND", "6. TAKE", "7. RETURN", "8. CHANGE"]
-        
         if "None" not in selected_framework:
             selected_beat = st.selectbox("Beat", beat_options)
         else:
             selected_beat = "General Scene"
-
         scene_input = st.text_area("Paste Text:", height=200, key="scene_in")
-
         if st.button("🚀 Analyze Scene", type="primary"):
             if scene_input:
                 with st.spinner("Analyzing..."):
@@ -204,7 +209,6 @@ with tab1:
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error: {e}")
-
     with col2:
         st.markdown("### 2. Review & Log")
         if st.session_state.current_report:
@@ -218,12 +222,10 @@ with tab1:
                 }
                 st.session_state.chapter_log.append(new_entry)
                 st.success(f"Saved {chapter_title}!")
-            
             html_report = create_html_report(st.session_state.current_report, f"Analysis: {chapter_title}")
             st.download_button("📥 Download Report", html_report, f"{chapter_title}_analysis.html", "text/html")
         else:
             st.markdown("*Run analysis to see results.*")
-
     if st.session_state.current_report:
         st.markdown("---")
         st.markdown(st.session_state.current_report)
@@ -235,9 +237,7 @@ with tab2:
         st.info(f"Checking against **{selected_framework}** beats.")
     else:
         st.info("Checking for **Global 5 Commandments**.")
-    
     outline_input = st.text_area("Paste Full Plot Outline:", height=300)
-    
     if st.button("Diagnose Outline", type="primary"):
         if outline_input:
             with st.spinner("Diagnosing..."):
@@ -252,12 +252,9 @@ with tab2:
 # === GLOBAL PROJECT TABLE ===
 st.divider()
 st.header("📊 Project Table (Book Map)")
-
 if len(st.session_state.chapter_log) > 0:
     df = pd.DataFrame(st.session_state.chapter_log)
     st.dataframe(df, use_container_width=True)
-    
-    # EXCEL EXPORT LOGIC
     excel_data = to_excel(df)
     st.download_button(
         label="📥 Download Excel (.xlsx)",
