@@ -4,3 +4,4 @@ markdown
 pandas
 openpyxl
 python-docx
+pyairtable
