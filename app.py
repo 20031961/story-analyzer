@@ -51,10 +51,14 @@ PROJECTS = {
     "❄️ Chione Trilogy": {
         "base_id": "apphWWXcojkv7nPni",  # The Base ID for Chione
         "tables": {
-            "Main Codex": "tblPYX2dWW6q1aJuM",
-            "Characters": "tblREPLACE_THIS",
-            "Locations": "tblREPLACE_THIS",
-            "Laws & Lore": "tblREPLACE_THIS"
+            "Main Codex": "tblVIzhmAnBxCXbtU",
+            "Characters": "tblPYX2dWW6q1aJuM",
+            "Locations": "tblhi6WcDzZ7ycTQV",
+            "Laws & Lore": "tblVIzhmAnBxCXbtU",
+            "Glossary": "tblyJohOidLdC3dZ6",
+            "Scenes": "tblZ3wc6zUW9oQ4rM",
+            "Master data digest": "tblpYgBSnNz3QBtPD"
+
         }
     },
     "🌵 The Gatekeepers": {
