@@ -50,12 +50,12 @@ except:
 # 🚨 PASTE YOUR TABLE IDs HERE! 🚨
 # Format: "Name to Display": "tblXXXXXXXXXXXXXX"
 AIRTABLE_MAP = {
-    "Main Codex": "tblkjLL68ktTNODZ7/viw6Llm1fArpG9YDV?blocks=hide",  # This is the one you already have
-    "Characters": "tblPYX2dWW6q1aJuM/viweR2CnjvyMUgj0r?blocks=hide", # <--- Paste Character Table ID here
-    "Locations": "tblhi6WcDzZ7ycTQV/viwdu38p34nKkYUiT?blocks=hide",  # <--- Paste Location Table ID here
-    "Glossary": "tblyJohOidLdC3dZ6/viwqpbLpLGfYjohGG?blocks=hide", # <--- Paste Rules Table ID here
-    "Scenes": "tblZ3wc6zUW9oQ4rM/viwafReqUrFOvtlSo?blocks=hide",
-    "Master data digest": "tblpYgBSnNz3QBtPD/viwJZUljCQfBo7crs?blocks=hide"
+    "Main Codex": "tblkjLL68ktTNODZ7",  
+    "Characters": "tblPYX2dWW6q1aJuM", 
+    "Locations": "tblhi6WcDzZ7ycTQV",  
+    "Glossary": "tblyJohOidLdC3dZ6", 
+    "Scenes": "tblZ3wc6zUW9oQ4rM",
+    "Master data digest": "tblpYgBSnNz3QBtPD"
 }
 
 BASE_ID = "apphWWXcojkv7nPni"
