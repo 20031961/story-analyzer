@@ -55,7 +55,8 @@ AIRTABLE_MAP = {
     "Locations": "tblhi6WcDzZ7ycTQV",  
     "Glossary": "tblyJohOidLdC3dZ6", 
     "Scenes": "tblZ3wc6zUW9oQ4rM",
-    "Master data digest": "tblpYgBSnNz3QBtPD"
+    "Master data digest": "tblpYgBSnNz3QBtPD",
+    "Law and lore": "tblVIzhmAnBxCXbtU"
 }
 
 BASE_ID = "apphWWXcojkv7nPni"
