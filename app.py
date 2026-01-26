@@ -155,109 +155,180 @@ def analyze_outline(text, genre, framework):
     return model.generate_content(prompt).text
 
 # --- UI START ---
-st.title("Story Grid Analyzer Pro 🧬")
-
-# === SIDEBAR (PROJECT SELECTOR) ===
-with st.sidebar:
-    st.header("🗂️ Project Selection")
-    # 1. Select the Book/Series
-    selected_project_name = st.selectbox("Active Project", list(PROJECTS.keys()))
+st.markdown("""
+<style>
+    /* Make headers Teal */
+    h1, h2, h3 { color: #008080 !important; }
     
-    # 2. Load Config for that Book
+    /* Style the big buttons */
+    div.stButton > button:first-child {
+        border-radius: 10px;
+        font-weight: bold;
+        border: 2px solid #008080;
+    }
+    
+    /* Make the metrics stand out */
+    div[data-testid="stMetricValue"] {
+        color: #008080;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# --- UI START ---
+
+# 1. SIDEBAR (The Control Room)
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/2038/2038263.png", width=50) # Optional Icon
+    st.title("Navigator")
+    
+    # Project Selection with clear visual grouping
+    st.markdown("### 🗂️ Active Project")
+    selected_project_name = st.selectbox("Select Book/Series", list(PROJECTS.keys()), label_visibility="collapsed")
+    
+    # Load Config
     current_config = PROJECTS[selected_project_name]
     current_base_id = current_config["base_id"]
     current_tables = current_config["tables"]
 
     st.divider()
-    st.header("🎛️ Analysis Settings")
+    
+    st.markdown("### ⚙️ Analysis Config")
     selected_genre = st.selectbox("Genre", ["Action/Thriller", "Love Story", "Horror", "Mystery/Crime", "Sci-Fi/Fantasy", "Drama", "Non-Fiction"])
-    selected_framework = st.selectbox("Structure Framework", ["None (Pure Story Grid)", "Save the Cat!", "Dan Harmon's Story Circle", "Fichtean Curve"])
+    selected_framework = st.selectbox("Framework", ["None (Pure Story Grid)", "Save the Cat!", "Dan Harmon's Story Circle", "Fichtean Curve"])
+    
     st.divider()
-    if st.button("Clear Project Table"):
+    
+    # Metrics in Sidebar
+    scene_count = len(st.session_state.chapter_log)
+    st.metric("Scenes Logged", scene_count, delta=f"+{1 if scene_count > 0 else 0} this session")
+    
+    if st.button("🗑️ Clear Session Data"):
         st.session_state.chapter_log = []
         st.rerun()
 
-# TABS
+# 2. MAIN DASHBOARD HEADER
+st.title(f"{selected_project_name}")
+st.caption(f"Story Grid Analyzer Pro • {selected_genre} • {selected_framework}")
+
+# Top Metric Row (The "Command Center" feel)
+m1, m2, m3, m4 = st.columns(4)
+with m1: st.metric("World Status", "Connected", "Online")
+with m2: st.metric("Bible Entries", "Live", "Airtable")
+with m3: st.metric("Scenes Tracked", scene_count)
+with m4: st.metric("Draft Health", "Pending Analysis")
+
+st.markdown("---")
+
+# 3. TABS (Clean & Logical)
 tab1, tab2, tab3 = st.tabs(["🩺 Outline Doctor", "🔬 Scene Logger", "📚 World Codex"])
 
 # === TAB 1: OUTLINE DOCTOR ===
 with tab1:
-    st.info(f"Diagnosing Outline for: **{selected_project_name}**")
-    uploaded_outline = st.file_uploader("📂 Upload Outline", type=["docx", "txt"], key="outline_file")
-    outline_text_area = read_file(uploaded_outline) if uploaded_outline else ""
-    outline_input = st.text_area("Or Paste Text:", value=outline_text_area, height=300)
-    if st.button("Diagnose Outline", type="primary"):
-        with st.spinner("Diagnosing..."):
-            try:
-                diagnosis = analyze_outline(outline_input, selected_genre, selected_framework)
-                st.markdown(diagnosis)
-            except Exception as e: st.error(f"Error: {e}")
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        st.markdown("#### 📄 Upload Manuscript")
+        uploaded_outline = st.file_uploader("Drop your full outline or synopsis here", type=["docx", "txt"], key="outline_file")
+        outline_text_area = read_file(uploaded_outline) if uploaded_outline else ""
+        
+    with c2:
+        st.info("💡 **Pro Tip:** Paste your entire 'Foolscap' or beat sheet here for a structural check-up.")
+        
+    outline_input = st.text_area("Or paste text directly:", value=outline_text_area, height=300)
+    
+    if st.button("✨ Run Structural Diagnosis", type="primary", use_container_width=True):
+        if outline_input:
+            with st.spinner("🤖 Reading your story structure..."):
+                try:
+                    diagnosis = analyze_outline(outline_input, selected_genre, selected_framework)
+                    st.markdown(diagnosis)
+                    st.balloons() # <--- BELLS AND WHISTLES!
+                except Exception as e: st.error(f"Error: {e}")
+        else:
+            st.warning("Please upload or paste text first.")
 
 # === TAB 2: SCENE LOGGER ===
 with tab2:
-    st.caption(f"Logging Scenes for: **{selected_project_name}**")
+    st.markdown("#### 🎬 Scene Analysis Engine")
+    
     col1, col2 = st.columns([2, 1])
     with col1:
-        chapter_title = st.text_input("Chapter Name")
-        selected_beat = st.selectbox("Beat Type", ["General Scene", "Inciting Incident", "Climax"])
-        uploaded_scene = st.file_uploader("📂 Upload Chapter", type=["docx", "txt"], key="scene_file")
-        scene_text_area = read_file(uploaded_scene) if uploaded_scene else ""
-        scene_input = st.text_area("Or Paste Text:", value=scene_text_area, height=200, key="scene_in")
-        if st.button("🚀 Analyze Scene", type="primary"):
-            with st.spinner("Analyzing..."):
-                try:
-                    report = analyze_scene(scene_input, selected_genre, selected_framework, selected_beat)
-                    st.session_state.current_report = report
-                    st.rerun()
-                except Exception as e: st.error(f"Error: {e}")
+        # Group inputs in a nice container
+        with st.container(border=True):
+            chapter_title = st.text_input("Chapter / Scene Title", placeholder="e.g. Chapter 1: The Arrival")
+            uploaded_scene = st.file_uploader("Upload Scene Document", type=["docx", "txt"], key="scene_file")
+            
+            scene_text_area = read_file(uploaded_scene) if uploaded_scene else ""
+            scene_input = st.text_area("Scene Text", value=scene_text_area, height=250, placeholder="Paste scene text here...")
+            
+            # The Big Button
+            if st.button("🚀 Analyze Scene", type="primary", use_container_width=True):
+                if scene_input:
+                    with st.spinner("Analyzing beats and commandments..."):
+                        try:
+                            report = analyze_scene(scene_input, selected_genre, selected_framework, "General Scene")
+                            st.session_state.current_report = report
+                            st.toast("Analysis Complete! 🍞", icon="✅") # <--- MODERN TOAST POPUP
+                            st.rerun()
+                        except Exception as e: st.error(f"Error: {e}")
+                else:
+                    st.toast("Please enter text first", icon="⚠️")
+
     with col2:
+        st.markdown("**Beat Settings**")
+        selected_beat = st.pills("Scene Type", ["Action", "Reactive", "Inciting Incident", "Climax"], selection_mode="single")
+        
         if st.session_state.current_report:
-            if st.button("➕ Add to Table"):
+            st.success("✅ Report Ready")
+            if st.button("➕ Add to Project Log", use_container_width=True):
                 st.session_state.chapter_log.append({"Chapter": chapter_title, "Analysis": st.session_state.current_report})
-                st.success("Saved!")
-            st.download_button("📥 Download Report", create_html_report(st.session_state.current_report, chapter_title), "report.html")
+                st.toast("Saved to Project Table!", icon="💾")
+            
+            st.download_button("📥 Download HTML", create_html_report(st.session_state.current_report, chapter_title), "report.html", use_container_width=True)
+
+    # Report Display Area
     if st.session_state.current_report:
-        st.markdown("---")
-        st.markdown(st.session_state.current_report)
+        with st.expander("📝 View Full Analysis Report", expanded=True):
+            st.markdown(st.session_state.current_report)
 
 # === TAB 3: WORLD CODEX (MULTI-BASE SUPPORT) ===
 with tab3:
-    col_a, col_b = st.columns([1, 3])
+    # Layout: Sidebar navigation for the Codex on the left, Content on the right
+    col_a, col_b = st.columns([1, 4])
     
     with col_a:
-        st.markdown(f"### 🗃️ {selected_project_name}")
-        # Radio button to switch tables within the current project
-        selected_table_key = st.radio("Select Category:", list(current_tables.keys()))
+        st.markdown("#### 📖 Library")
+        # Fancy radio buttons
+        selected_table_key = st.radio("Select Category:", list(current_tables.keys()), label_visibility="collapsed")
         selected_table_id = current_tables[selected_table_key]
     
     with col_b:
-        st.markdown(f"### 🌍 {selected_table_key}")
-        
-        # Fetch Data using the CURRENT Base ID and Selected Table ID
+        # Fetch Data
         df_airtable = fetch_airtable_data(current_base_id, selected_table_id)
         
         if df_airtable is not None and not df_airtable.empty:
-            search_query = st.text_input(f"🔍 Search {selected_table_key}", placeholder="Type to filter...")
+            # Search bar with a magnifying glass icon
+            search_query = st.text_input(f"Search {selected_table_key}...", placeholder=f"Find in {selected_project_name}...", label_visibility="collapsed")
             
             if search_query:
-                # Safe filtering that handles missing columns
                 mask = df_airtable.apply(lambda x: x.astype(str).str.contains(search_query, case=False).any(), axis=1)
                 display_df = df_airtable[mask]
             else:
                 display_df = df_airtable
 
-            st.dataframe(display_df, use_container_width=True)
-            st.caption(f"Showing {len(display_df)} records from {selected_project_name}")
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            st.caption(f"Showing {len(display_df)} records • Live from Airtable")
         else:
             if "REPLACE" in selected_table_id:
-                st.warning("⚠️ Configuration Needed: Go to app.py and add the Table ID for this category.")
+                st.warning("⚠️ Configuration Needed in app.py")
             else:
-                st.warning("No data found. Check your permissions and IDs.")
+                st.info(f"No records found in {selected_table_key}.")
 
-# === GLOBAL PROJECT TABLE ===
+# === GLOBAL PROJECT TABLE (Footer) ===
 st.divider()
-st.header("📊 Project Table")
 if len(st.session_state.chapter_log) > 0:
+    st.subheader("📊 Session Log")
     df = pd.DataFrame(st.session_state.chapter_log)
     st.dataframe(df, use_container_width=True)
-    st.download_button("📥 Download Excel", to_excel(df), "story_grid_project.xlsx")
+    st.download_button("📥 Download Excel Log", to_excel(df), "story_grid_project.xlsx", type="primary")
+else:
+    st.caption("Start analyzing scenes to build your session log.")
