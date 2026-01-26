@@ -46,41 +46,47 @@ try:
 except:
     st.error("⚠️ API Key missing. Please check Secrets.")
 
-# --- AIRTABLE CONFIGURATION ---
-# 🚨 PASTE YOUR TABLE IDs HERE! 🚨
-# Format: "Name to Display": "tblXXXXXXXXXXXXXX"
-AIRTABLE_MAP = {
-    "Main Codex": "tblkjLL68ktTNODZ7",  
-    "Characters": "tblPYX2dWW6q1aJuM", 
-    "Locations": "tblhi6WcDzZ7ycTQV",  
-    "Glossary": "tblyJohOidLdC3dZ6", 
-    "Scenes": "tblZ3wc6zUW9oQ4rM",
-    "Master data digest": "tblpYgBSnNz3QBtPD",
-    "Law and lore": "tblVIzhmAnBxCXbtU"
+# --- 📚 PROJECT CONFIGURATION (THE FILING CABINET) ---
+PROJECTS = {
+    "❄️ Chione Trilogy": {
+        "base_id": "apphWWXcojkv7nPni",  # The Base ID for Chione
+        "tables": {
+            "Main Codex": "tblPYX2dWW6q1aJuM",
+            "Characters": "tblREPLACE_THIS",
+            "Locations": "tblREPLACE_THIS",
+            "Laws & Lore": "tblREPLACE_THIS"
+        }
+    },
+    "🌵 The Gatekeepers": {
+        "base_id": "appS0RBUAeRGaSsOl/",  
+        "tables": {
+            "Characters": "tbl1b3FoNzVdIxIS6",
+            "Locations": "tblMMVh7qA3wovl8t",
+            "Scenes": "tblVIzhmAnBxCXbtU",
+            "Ironless Earth world-building": "tblzeWkM2S7FvSrGl"
+        }
+    }
 }
 
-BASE_ID = "apphWWXcojkv7nPni"
-
-# --- AIRTABLE FUNCTION ---
+# --- AIRTABLE FUNCTION (Updated for Dynamic Bases) ---
 @st.cache_data(ttl=600)
-def fetch_airtable_data(table_id):
+def fetch_airtable_data(base_id, table_id):
     try:
         if "AIRTABLE_TOKEN" in st.secrets:
             api = Api(st.secrets["AIRTABLE_TOKEN"])
-            table = api.table(BASE_ID, table_id)
+            table = api.table(base_id, table_id)
             records = table.all()
             data = [r['fields'] for r in records]
             return pd.DataFrame(data)
         else:
             return None
     except Exception as e:
-        # Don't show error if ID is just a placeholder
-        if "REPLACE" in table_id:
-            return pd.DataFrame({"Info": ["Please paste the real Table ID in app.py"]})
+        if "REPLACE" in table_id or "appXXX" in base_id:
+            return pd.DataFrame({"Info": ["Please configure IDs in app.py"]})
         st.error(f"Airtable Error: {e}")
         return None
 
-# --- HELPERS (File Read, Excel, AI) ---
+# --- HELPERS ---
 def read_file(uploaded_file):
     if uploaded_file is None: return ""
     if uploaded_file.name.endswith(".docx"):
@@ -127,6 +133,7 @@ def to_excel(df):
             worksheet.column_dimensions[chr(65 + i)].width = 25
     return output.getvalue()
 
+# --- BRAINS ---
 def analyze_scene(text, genre, framework, beat):
     prompt = f"""
     You are a ruthless Story Grid editor. Analyze this SCENE.
@@ -147,14 +154,22 @@ def analyze_outline(text, genre, framework):
     model = genai.GenerativeModel('gemini-flash-latest')
     return model.generate_content(prompt).text
 
-# --- UI ---
+# --- UI START ---
 st.title("Story Grid Analyzer Pro 🧬")
 
-with st.expander("📘 How to Use"):
-    st.markdown("Use the Tabs below to manage your Outline, Scenes, and World Bible.")
-
+# === SIDEBAR (PROJECT SELECTOR) ===
 with st.sidebar:
-    st.header("🎛️ Settings")
+    st.header("🗂️ Project Selection")
+    # 1. Select the Book/Series
+    selected_project_name = st.selectbox("Active Project", list(PROJECTS.keys()))
+    
+    # 2. Load Config for that Book
+    current_config = PROJECTS[selected_project_name]
+    current_base_id = current_config["base_id"]
+    current_tables = current_config["tables"]
+
+    st.divider()
+    st.header("🎛️ Analysis Settings")
     selected_genre = st.selectbox("Genre", ["Action/Thriller", "Love Story", "Horror", "Mystery/Crime", "Sci-Fi/Fantasy", "Drama", "Non-Fiction"])
     selected_framework = st.selectbox("Structure Framework", ["None (Pure Story Grid)", "Save the Cat!", "Dan Harmon's Story Circle", "Fichtean Curve"])
     st.divider()
@@ -167,7 +182,7 @@ tab1, tab2, tab3 = st.tabs(["🩺 Outline Doctor", "🔬 Scene Logger", "📚 Wo
 
 # === TAB 1: OUTLINE DOCTOR ===
 with tab1:
-    st.info("Macro Analysis Mode")
+    st.info(f"Diagnosing Outline for: **{selected_project_name}**")
     uploaded_outline = st.file_uploader("📂 Upload Outline", type=["docx", "txt"], key="outline_file")
     outline_text_area = read_file(uploaded_outline) if uploaded_outline else ""
     outline_input = st.text_area("Or Paste Text:", value=outline_text_area, height=300)
@@ -180,6 +195,7 @@ with tab1:
 
 # === TAB 2: SCENE LOGGER ===
 with tab2:
+    st.caption(f"Logging Scenes for: **{selected_project_name}**")
     col1, col2 = st.columns([2, 1])
     with col1:
         chapter_title = st.text_input("Chapter Name")
@@ -204,24 +220,24 @@ with tab2:
         st.markdown("---")
         st.markdown(st.session_state.current_report)
 
-# === TAB 3: WORLD CODEX (AIRTABLE) ===
+# === TAB 3: WORLD CODEX (MULTI-BASE SUPPORT) ===
 with tab3:
     col_a, col_b = st.columns([1, 3])
     
     with col_a:
-        st.markdown("### 🗂️ Categories")
-        # Radio button to switch tables
-        selected_table_name = st.radio("Select Codex:", list(AIRTABLE_MAP.keys()))
-        selected_table_id = AIRTABLE_MAP[selected_table_name]
+        st.markdown(f"### 🗃️ {selected_project_name}")
+        # Radio button to switch tables within the current project
+        selected_table_key = st.radio("Select Category:", list(current_tables.keys()))
+        selected_table_id = current_tables[selected_table_key]
     
     with col_b:
-        st.markdown(f"### 🌍 {selected_table_name}")
+        st.markdown(f"### 🌍 {selected_table_key}")
         
-        # Fetch Data for the selected table
-        df_airtable = fetch_airtable_data(selected_table_id)
+        # Fetch Data using the CURRENT Base ID and Selected Table ID
+        df_airtable = fetch_airtable_data(current_base_id, selected_table_id)
         
         if df_airtable is not None and not df_airtable.empty:
-            search_query = st.text_input(f"🔍 Search {selected_table_name}", placeholder="Type to filter...")
+            search_query = st.text_input(f"🔍 Search {selected_table_key}", placeholder="Type to filter...")
             
             if search_query:
                 # Safe filtering that handles missing columns
@@ -231,9 +247,12 @@ with tab3:
                 display_df = df_airtable
 
             st.dataframe(display_df, use_container_width=True)
-            st.caption(f"Showing {len(display_df)} records")
+            st.caption(f"Showing {len(display_df)} records from {selected_project_name}")
         else:
-            st.warning("No data found. Check your Table ID in app.py")
+            if "REPLACE" in selected_table_id:
+                st.warning("⚠️ Configuration Needed: Go to app.py and add the Table ID for this category.")
+            else:
+                st.warning("No data found. Check your permissions and IDs.")
 
 # === GLOBAL PROJECT TABLE ===
 st.divider()
