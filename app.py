@@ -46,28 +46,40 @@ try:
 except:
     st.error("⚠️ API Key missing. Please check Secrets.")
 
-# --- AIRTABLE SETUP ---
-# We wrap this in a function to cache the data so it doesn't reload on every click
-@st.cache_data(ttl=600) # Refresh data every 10 minutes
-def fetch_airtable_data():
+# --- AIRTABLE CONFIGURATION ---
+# 🚨 PASTE YOUR TABLE IDs HERE! 🚨
+# Format: "Name to Display": "tblXXXXXXXXXXXXXX"
+AIRTABLE_MAP = {
+    "Main Codex": "tblkjLL68ktTNODZ7/viw6Llm1fArpG9YDV?blocks=hide",  # This is the one you already have
+    "Characters": "tblPYX2dWW6q1aJuM/viweR2CnjvyMUgj0r?blocks=hide", # <--- Paste Character Table ID here
+    "Locations": "tblhi6WcDzZ7ycTQV/viwdu38p34nKkYUiT?blocks=hide",  # <--- Paste Location Table ID here
+    "Glossary": "tblyJohOidLdC3dZ6/viwqpbLpLGfYjohGG?blocks=hide", # <--- Paste Rules Table ID here
+    "Scenes": "tblZ3wc6zUW9oQ4rM/viwafReqUrFOvtlSo?blocks=hide",
+    "Master data digest": "tblpYgBSnNz3QBtPD/viwJZUljCQfBo7crs?blocks=hide"
+}
+
+BASE_ID = "apphWWXcojkv7nPni"
+
+# --- AIRTABLE FUNCTION ---
+@st.cache_data(ttl=600)
+def fetch_airtable_data(table_id):
     try:
         if "AIRTABLE_TOKEN" in st.secrets:
             api = Api(st.secrets["AIRTABLE_TOKEN"])
-            # IDs from your specific URL
-            BASE_ID = "apphWWXcojkv7nPni"
-            TABLE_ID = "tblPYX2dWW6q1aJuM"
-            table = api.table(BASE_ID, TABLE_ID)
+            table = api.table(BASE_ID, table_id)
             records = table.all()
-            # Convert to DataFrame for easy display
             data = [r['fields'] for r in records]
             return pd.DataFrame(data)
         else:
             return None
     except Exception as e:
-        st.error(f"Airtable Connection Error: {e}")
+        # Don't show error if ID is just a placeholder
+        if "REPLACE" in table_id:
+            return pd.DataFrame({"Info": ["Please paste the real Table ID in app.py"]})
+        st.error(f"Airtable Error: {e}")
         return None
 
-# --- HELPERS ---
+# --- HELPERS (File Read, Excel, AI) ---
 def read_file(uploaded_file):
     if uploaded_file is None: return ""
     if uploaded_file.name.endswith(".docx"):
@@ -114,7 +126,6 @@ def to_excel(df):
             worksheet.column_dimensions[chr(65 + i)].width = 25
     return output.getvalue()
 
-# --- BRAINS ---
 def analyze_scene(text, genre, framework, beat):
     prompt = f"""
     You are a ruthless Story Grid editor. Analyze this SCENE.
@@ -150,7 +161,7 @@ with st.sidebar:
         st.session_state.chapter_log = []
         st.rerun()
 
-# TABS (Updated with World Codex)
+# TABS
 tab1, tab2, tab3 = st.tabs(["🩺 Outline Doctor", "🔬 Scene Logger", "📚 World Codex"])
 
 # === TAB 1: OUTLINE DOCTOR ===
@@ -194,28 +205,34 @@ with tab2:
 
 # === TAB 3: WORLD CODEX (AIRTABLE) ===
 with tab3:
-    st.markdown("### 🌍 Chione World Bible")
-    st.caption("Live data from your Airtable")
+    col_a, col_b = st.columns([1, 3])
     
-    # Fetch Data
-    df_airtable = fetch_airtable_data()
+    with col_a:
+        st.markdown("### 🗂️ Categories")
+        # Radio button to switch tables
+        selected_table_name = st.radio("Select Codex:", list(AIRTABLE_MAP.keys()))
+        selected_table_id = AIRTABLE_MAP[selected_table_name]
     
-    if df_airtable is not None and not df_airtable.empty:
-        # Search Bar
-        search_query = st.text_input("🔍 Search Codex (Character, Location, Law)", placeholder="e.g. David")
+    with col_b:
+        st.markdown(f"### 🌍 {selected_table_name}")
         
-        if search_query:
-            # Filter the dataframe (case-insensitive)
-            mask = df_airtable.apply(lambda x: x.astype(str).str.contains(search_query, case=False).any(), axis=1)
-            display_df = df_airtable[mask]
-        else:
-            display_df = df_airtable
+        # Fetch Data for the selected table
+        df_airtable = fetch_airtable_data(selected_table_id)
+        
+        if df_airtable is not None and not df_airtable.empty:
+            search_query = st.text_input(f"🔍 Search {selected_table_name}", placeholder="Type to filter...")
+            
+            if search_query:
+                # Safe filtering that handles missing columns
+                mask = df_airtable.apply(lambda x: x.astype(str).str.contains(search_query, case=False).any(), axis=1)
+                display_df = df_airtable[mask]
+            else:
+                display_df = df_airtable
 
-        # Display Data
-        st.dataframe(display_df, use_container_width=True)
-        st.metric("Total Records", len(df_airtable))
-    else:
-        st.warning("No data found or Airtable not connected. Check your Secrets.")
+            st.dataframe(display_df, use_container_width=True)
+            st.caption(f"Showing {len(display_df)} records")
+        else:
+            st.warning("No data found. Check your Table ID in app.py")
 
 # === GLOBAL PROJECT TABLE ===
 st.divider()
