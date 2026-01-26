@@ -58,7 +58,7 @@ PROJECTS = {
         }
     },
     "🌵 The Gatekeepers": {
-        "base_id": "appS0RBUAeRGaSsOl/",  
+        "base_id": "appS0RBUAeRGaSsOl",  
         "tables": {
             "Characters": "tbl1b3FoNzVdIxIS6",
             "Locations": "tblMMVh7qA3wovl8t",
