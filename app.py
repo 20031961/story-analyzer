@@ -208,7 +208,7 @@ with st.sidebar:
     st.divider()
     st.markdown("### ✍️ Creator Tools")
     
-  # --- QUICK ADD FORM (The new "Write" Feature) ---
+# --- QUICK ADD FORM (The new "Write" Feature) ---
 # Only show this form if "Helle" is logged in
 if is_admin:
     with st.expander("➕ Quick Add to Codex", expanded=False):
@@ -218,22 +218,21 @@ if is_admin:
             new_desc = st.text_area("Description", placeholder="A brief summary...")
             
             if st.form_submit_button("Save to Airtable"):
-                # Notice all lines below are indented inside the 'if'
                 if add_to_codex(config["base_id"], config["codex_table_id"], new_name, new_cat, new_desc):
                     st.toast(f"Saved {new_name}!", icon="💾")
                     fetch_master_codex.clear() # Force refresh data
                     st.rerun()
 
-    st.divider()
-    st.markdown("### ⚙️ Analysis Config")
-    selected_genre = st.selectbox("Genre", ["Action/Thriller", "Love Story", "Horror", "Mystery/Crime", "Sci-Fi/Fantasy"])
-    selected_framework = st.selectbox("Framework", ["None (Pure Story Grid)", "Save the Cat!", "Dan Harmon's Story Circle"])
-    
-    scene_count = len(st.session_state.chapter_log)
-    st.metric("Scenes Logged", scene_count)
-    if st.button("🗑️ Clear Session Data"):
-        st.session_state.chapter_log = []
-        st.rerun()
+st.divider()
+st.markdown("### ⚙️ Analysis Config")
+selected_genre = st.selectbox("Genre", ["Action/Thriller", "Love Story", "Horror", "Mystery/Crime", "Sci-Fi/Fantasy"])
+selected_framework = st.selectbox("Framework", ["None (Pure Story Grid)", "Save the Cat!", "Dan Harmon's Story Circle"])
+
+scene_count = len(st.session_state.chapter_log)
+st.metric("Scenes Logged", scene_count)
+if st.button("🗑️ Clear Session Data"):
+st.session_state.chapter_log = []
+st.rerun()
 
 # 2. MAIN HEADER
 col_h1, col_h2 = st.columns([1, 6])
