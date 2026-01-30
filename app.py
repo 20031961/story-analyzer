@@ -282,10 +282,10 @@ with tab3:
         
         # Create dynamic sub-tabs for each category
        # Filter out any blank/None categories to prevent crashes
-valid_categories = [c for c in categories if c and isinstance(c, str)]
-if not valid_categories:
-    st.warning("No categories found in Codex. Please tag your items!")
-    st.stop()
+        valid_categories = [c for c in categories if c and isinstance(c, str)]
+        if not valid_categories:
+            st.warning("No categories found in Codex. Please tag your items!")
+            st.stop()
 
 # --- SAFETY FILTER START ---
     # 1. Create a "Clean List" (No blanks, no None)
@@ -299,54 +299,48 @@ if not valid_categories:
     # 3. Create the Tabs using ONLY the Clean List
     sub_tabs = st.tabs(valid_categories)
 
-    # 4. Loop through the Clean List (Notice I updated 'categories' to 'valid_categories')
+   # 4. Loop through the Clean List (Replace your old loop with this entire block)
     for i, cat in enumerate(valid_categories):
-    # --- SAFETY FILTER END ---
-            with sub_tabs[i]:
-        # 1. Filter data for this tab (Keep this!)
-        df_filtered = df_codex[df_codex["Category"] == cat]
-        
-        # 2. Search Bar (Keep this!)
-        search = st.text_input(f"Search {cat}s...", key=f"search_{cat}")
-        if search:
-            mask = df_filtered.apply(lambda x: x.astype(str).str.contains(search, case=False).any(), axis=1)
-            df_filtered = df_filtered[mask]
-        
-        # 3. THE NEW DISPLAY LOOP (Replaces st.dataframe)
-        if df_filtered.empty:
-            st.info(f"No {cat} entries found.")
-        else:
-            # Loop through the rows to display "Cards" instead of a grid
-            for index, row in df_filtered.iterrows():
-                
-                # --- HEADLINE (Name + Role) ---
-                name = row.get("Name", "Unnamed")
-                role = row.get("Role")
-                
-                # Check if role exists and isn't empty/NaN
-                if role and isinstance(role, str):
-                    st.subheader(f"{name} ({role})")
-                else:
-                    st.subheader(name)
-                
-                # --- DESCRIPTION ---
-                desc = row.get("Description")
-                if desc and isinstance(desc, str):
-                    st.write(desc)
-                
-                # --- RICH DETAILS (The Magic Part) ---
-                # This renders your **Bold** text correctly!
-                details = row.get("Details")
-                if details and isinstance(details, str):
-                    st.markdown(details) 
-                
-                # Divider line between entries
-                st.markdown("---")
+        with sub_tabs[i]:
+            # --- 1. Filter data for this tab ---
+            df_filtered = df_codex[df_codex["Category"] == cat]
             
-            st.caption(f"Showing {len(df_filtered)} items")
-    else:
-        st.info("👋 Welcome! To start, ensure your Airtable has a column named 'Category'. Use the Sidebar to add your first item!")
-
+            # --- 2. Search Bar ---
+            search = st.text_input(f"Search {cat}s...", key=f"search_{cat}")
+            if search:
+                mask = df_filtered.apply(lambda x: x.astype(str).str.contains(search, case=False).any(), axis=1)
+                df_filtered = df_filtered[mask]
+            
+            # --- 3. The Card Display Logic ---
+            if df_filtered.empty:
+                st.info(f"No {cat} entries found.")
+            else:
+                # Loop through the rows to display "Cards"
+                for index, row in df_filtered.iterrows():
+                    
+                    # HEADLINE (Name + Role)
+                    name = row.get("Name", "Unnamed")
+                    role = row.get("Role")
+                    
+                    if role and isinstance(role, str):
+                        st.subheader(f"{name} ({role})")
+                    else:
+                        st.subheader(name)
+                    
+                    # DESCRIPTION
+                    desc = row.get("Description")
+                    if desc and isinstance(desc, str):
+                        st.write(desc)
+                    
+                    # RICH DETAILS
+                    details = row.get("Details")
+                    if details and isinstance(details, str):
+                        st.markdown(details) 
+                    
+                    # Divider
+                    st.markdown("---")
+                
+                st.caption(f"Showing {len(df_filtered)} items")
 # === FOOTER ===
 st.divider()
 if len(st.session_state.chapter_log) > 0:
