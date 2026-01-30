@@ -54,24 +54,49 @@ def apply_theme(color):
     </style>
     """, unsafe_allow_html=True)
 
-# --- SECURITY ---
+# --- SECURITY (Updated for Admin/Guest) ---
 def check_password():
-    if "password_correct" not in st.session_state:
-        st.session_state.password_correct = False
-    if st.session_state.password_correct:
+    # 1. Initialize Role if not set
+    if "user_role" not in st.session_state:
+        st.session_state.user_role = None
+
+    # 2. If already logged in, allow access
+    if st.session_state.user_role:
         return True
+
+    # 3. Show Login Form
     st.title("🔒 Login Required")
     password = st.text_input("Enter Password", type="password")
+    
     if st.button("Enter"):
-        if password == "story2026": 
-            st.session_state.password_correct = True
+        # --- ADMIN PASSWORD ---
+        if password == "Helle": 
+            st.session_state.user_role = "admin"
             st.rerun()
+            
+        # --- GUEST PASSWORD ---
+        elif password == "ChioneReader":  # <--- Give this password to friends!
+            st.session_state.user_role = "guest"
+            st.rerun()
+            
         else:
             st.error("😕 Incorrect password")
+            
     return False
 
+# Stop execution if not logged in
 if not check_password():
     st.stop()
+
+# Define permission variable for later use
+is_admin = (st.session_state.user_role == "admin")
+
+# Optional: Show a small welcome badge in the sidebar
+if is_admin:
+    st.sidebar.success("🔑 Admin Mode")
+else:
+    st.sidebar.info("👀 Guest Mode (Read-Only)")
+
 
 # --- SESSION STATE ---
 if 'chapter_log' not in st.session_state: st.session_state.chapter_log = []
@@ -184,6 +209,10 @@ with st.sidebar:
     st.markdown("### ✍️ Creator Tools")
     
     # --- QUICK ADD FORM (The new "Write" Feature) ---
+    # Only show this form if "Helle" is logged in
+    if is_admin:
+        with st.expander("➕ Quick Add to Codex", expanded=False):
+            # ... (rest of your form code) ...
     with st.expander("➕ Quick Add to Codex", expanded=False):
         with st.form("add_record_form", clear_on_submit=True):
             new_name = st.text_input("Name", placeholder="e.g. The Crystal Key")
