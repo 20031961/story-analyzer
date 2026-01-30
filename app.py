@@ -287,9 +287,21 @@ if not valid_categories:
     st.warning("No categories found in Codex. Please tag your items!")
     st.stop()
 
-sub_tabs = st.tabs(sorted(list(valid_categories)))
-        
-        for i, cat in enumerate(categories):
+# --- SAFETY FILTER START ---
+    # 1. Create a "Clean List" (No blanks, no None)
+    valid_categories = sorted([c for c in categories if c and isinstance(c, str)])
+
+    # 2. Safety Stop: If the list is empty, warn instead of crashing
+    if not valid_categories:
+        st.warning("⚠️ No valid categories found in Codex 2.0. Please check your tags!")
+        st.stop()
+
+    # 3. Create the Tabs using ONLY the Clean List
+    sub_tabs = st.tabs(valid_categories)
+
+    # 4. Loop through the Clean List (Notice I updated 'categories' to 'valid_categories')
+    for i, cat in enumerate(valid_categories):
+    # --- SAFETY FILTER END ---
             with sub_tabs[i]:
                 # Filter data for this tab
                 df_filtered = df_codex[df_codex["Category"] == cat]
