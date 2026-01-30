@@ -222,15 +222,19 @@ if is_admin:
                     st.toast(f"Saved {new_name}!", icon="💾")
                     fetch_master_codex.clear() # Force refresh data
                     st.rerun()
+                    
+# --- ANALYSIS CONFIG (Pinned to Sidebar) ---
+# This code is NOT indented. It sits on the "Left Wall".
+st.sidebar.divider()
+st.sidebar.markdown("### ⚙️ Analysis Config")
 
-st.divider()
-st.markdown("### ⚙️ Analysis Config")
-selected_genre = st.selectbox("Genre", ["Action/Thriller", "Love Story", "Horror", "Mystery/Crime", "Sci-Fi/Fantasy"])
-selected_framework = st.selectbox("Framework", ["None (Pure Story Grid)", "Save the Cat!", "Dan Harmon's Story Circle"])
+selected_genre = st.sidebar.selectbox("Genre", ["Action/Thriller", "Love Story", "Horror", "Mystery/Crime", "Sci-Fi/Fantasy", "Western"])
+selected_framework = st.sidebar.selectbox("Framework", ["None (Pure Story Grid)", "Save the Cat!", "Romancing the Beat", "Hero's Journey"])
 
 scene_count = len(st.session_state.chapter_log)
-st.metric("Scenes Logged", scene_count)
-if st.button("🗑️ Clear Session Data"):
+st.sidebar.metric("Scenes Logged", scene_count)
+
+if st.sidebar.button("🗑️ Clear Session Data"):
     st.session_state.chapter_log = []
     st.rerun()
 # 2. MAIN HEADER
