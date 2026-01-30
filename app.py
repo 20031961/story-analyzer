@@ -281,7 +281,13 @@ with tab3:
         categories = df_codex["Category"].unique()
         
         # Create dynamic sub-tabs for each category
-        sub_tabs = st.tabs(list(categories))
+       # Filter out any blank/None categories to prevent crashes
+valid_categories = [c for c in categories if c and isinstance(c, str)]
+if not valid_categories:
+    st.warning("No categories found in Codex. Please tag your items!")
+    st.stop()
+
+sub_tabs = st.tabs(sorted(list(valid_categories)))
         
         for i, cat in enumerate(categories):
             with sub_tabs[i]:
