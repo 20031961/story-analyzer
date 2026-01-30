@@ -231,9 +231,8 @@ selected_framework = st.selectbox("Framework", ["None (Pure Story Grid)", "Save 
 scene_count = len(st.session_state.chapter_log)
 st.metric("Scenes Logged", scene_count)
 if st.button("🗑️ Clear Session Data"):
-st.session_state.chapter_log = []
-st.rerun()
-
+    st.session_state.chapter_log = []
+    st.rerun()
 # 2. MAIN HEADER
 col_h1, col_h2 = st.columns([1, 6])
 with col_h1: st.title(config["icon"])
