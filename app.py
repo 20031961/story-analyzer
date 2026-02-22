@@ -1,381 +1,251 @@
 import streamlit as st
-import google.generativeai as genai
-import markdown
+import requests
 import pandas as pd
-import io
-import docx
-from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
-from pyairtable import Api
 
-# 1. SETUP & PAGE CONFIG
+# ==========================================
+# 1. APP CONFIGURATION & SETUP
+# ==========================================
 st.set_page_config(
-    page_title="Story Grid Analyzer Pro",
-    page_icon="🧬",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="Story Analyzer",
+    page_icon="❄️",
+    layout="wide"
 )
 
-# --- 📚 PROJECT CONFIGURATION (THE SIMPLIFIED "ONE ID" MODEL) ---
-PROJECTS = {
-    "Chione Trilogy": {
+# Initialize Session State for Login
+if "user_role" not in st.session_state:
+    st.session_state.user_role = None
+
+if "chapter_log" not in st.session_state:
+    st.session_state.chapter_log = []
+
+# Load Secrets
+try:
+    config = {
+        "api_key": st.secrets["AIRTABLE_API_KEY"],
+        "base_id": st.secrets["AIRTABLE_BASE_ID"],
+        "codex_table_id": st.secrets["AIRTABLE_TABLE_ID"],
+        "project_name": "Chione Trilogy",
         "icon": "❄️",
-        "theme_color": "#008080", # Teal
-        "locale": "American English",
-        "base_id": "apphWWXcojkv7nPni", 
-        "codex_table_id": "tblNNN5029XqoHdYV" # <--- JUST ONE MASTER TABLE ID!
-    },
-    "The Gatekeepers": {
-        "icon": "🚪",
-        "theme_color": "#D2691E", # Desert Orange
-        "locale": "American English",
-        "base_id": "app...",        # <--- Paste Real Base ID
-        "codex_table_id": "tbl..."  # <--- Paste Real Master Table ID
+        "language": "American English"
     }
-}
+except Exception as e:
+    st.error(f"❌ Configuration Error: {e}")
+    st.stop()
 
-# --- CUSTOM CSS (DYNAMIC THEMING) ---
-def apply_theme(color):
-    st.markdown(f"""
-    <style>
-        #MainMenu {{visibility: hidden;}}
-        footer {{visibility: hidden;}}
-        header {{visibility: hidden;}}
-        h1, h2, h3, h4 {{ color: {color} !important; }}
-        div.stButton > button:first-child {{
-            border: 2px solid {color};
-            color: {color};
-        }}
-        div.stButton > button:first-child:hover {{
-            background-color: {color};
-            color: white;
-        }}
-        div[data-testid="stMetricValue"] {{ color: {color}; }}
-        .stApp {{ background-image: linear-gradient(to bottom right, #ffffff, #f0f2f6); }}
-    </style>
-    """, unsafe_allow_html=True)
+# ==========================================
+# 2. HELPER FUNCTIONS (The Engine Room)
+# ==========================================
+@st.cache_data(ttl=60)
+def fetch_master_codex(base_id, table_id):
+    """Fetches all records from Airtable."""
+    url = f"https://api.airtable.com/v0/{base_id}/{table_id}"
+    headers = {"Authorization": f"Bearer {config['api_key']}"}
+    all_records = []
+    
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        all_records.extend(data.get('records', []))
+        
+        while 'offset' in data:
+            params = {'offset': data['offset']}
+            response = requests.get(url, headers=headers, params=params)
+            data = response.json()
+            all_records.extend(data.get('records', []))
+            
+        return all_records
+    except Exception as e:
+        st.error(f"Connection Failed: {e}")
+        return []
 
-# --- SECURITY (Updated for Admin/Guest) ---
+def add_to_codex(base_id, table_id, name, category, description):
+    """Writes a new record to Airtable."""
+    url = f"https://api.airtable.com/v0/{base_id}/{table_id}"
+    headers = {
+        "Authorization": f"Bearer {config['api_key']}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "fields": {
+            "Name": name,
+            "Category": category,
+            "Description": description,
+            "Role": "New Entry" # Default status
+        }
+    }
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        return True
+    except Exception as e:
+        st.error(f"Save Failed: {e}")
+        return False
+
+# ==========================================
+# 3. AUTHENTICATION (The Gatekeeper)
+# ==========================================
 def check_password():
-    # 1. Initialize Role if not set
-    if "user_role" not in st.session_state:
-        st.session_state.user_role = None
-
-    # 2. If already logged in, allow access
+    # If already logged in, pass
     if st.session_state.user_role:
         return True
 
-    # 3. Show Login Form
-    st.title("🔒 Login Required")
-    password = st.text_input("Enter Password", type="password")
+    st.title("🔒 Codex Access")
     
-    if st.button("Enter"):
-        # --- ADMIN PASSWORD ---
-        if password == "Helle": 
-            st.session_state.user_role = "admin"
-            st.rerun()
-            
-        # --- GUEST PASSWORD ---
-        elif password == "ChioneReader":  # <--- Give this password to friends!
-            st.session_state.user_role = "guest"
-            st.rerun()
-            
-        else:
-            st.error("😕 Incorrect password")
-            
+    with st.form("login_form"):
+        password = st.text_input("Enter Password", type="password")
+        submitted = st.form_submit_button("Enter")
+        
+        if submitted:
+            if password == "Helle":
+                st.session_state.user_role = "admin"
+                st.rerun()
+            elif password == "Guest":
+                st.session_state.user_role = "guest"
+                st.rerun()
+            else:
+                st.error("⛔ Password incorrect.")
+                
     return False
 
-# Stop execution if not logged in
+# Stop app if not logged in
 if not check_password():
     st.stop()
 
-# Define permission variable for later use
+# Define permission variable
 is_admin = (st.session_state.user_role == "admin")
 
-# Optional: Show a small welcome badge in the sidebar
-if is_admin:
-    st.sidebar.success("🔑 Admin Mode")
-else:
-    st.sidebar.info("👀 Guest Mode (Read-Only)")
-
-
-# --- SESSION STATE ---
-if 'chapter_log' not in st.session_state: st.session_state.chapter_log = []
-if 'current_report' not in st.session_state: st.session_state.current_report = ""
-
-# --- API SETUP ---
-try:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-except:
-    st.error("⚠️ API Key missing. Please check Secrets.")
-
-# --- AIRTABLE FUNCTIONS (READ & WRITE) ---
-@st.cache_data(ttl=10) # Fast refresh so we see new items immediately
-def fetch_master_codex(base_id, table_id):
-    try:
-        if "AIRTABLE_TOKEN" in st.secrets:
-            api = Api(st.secrets["AIRTABLE_TOKEN"])
-            table = api.table(base_id, table_id)
-            records = table.all()
-            data = [r['fields'] for r in records]
-            return pd.DataFrame(data)
-        else:
-            return None
-    except Exception as e:
-        if "REPLACE" in table_id: return pd.DataFrame({"Info": ["Config Needed"]})
-        return None
-
-def add_to_codex(base_id, table_id, name, category, description):
-    try:
-        api = Api(st.secrets["AIRTABLE_TOKEN"])
-        table = api.table(base_id, table_id)
-        table.create({"Name": name, "Category": category, "Description": description})
-        return True
-    except Exception as e:
-        st.error(f"Failed to save: {e}")
-        return False
-
-# --- HELPERS ---
-def read_file(uploaded_file):
-    if uploaded_file is None: return ""
-    if uploaded_file.name.endswith(".docx"):
-        try:
-            doc = docx.Document(uploaded_file)
-            return "\n".join([para.text for para in doc.paragraphs])
-        except: return ""
-    elif uploaded_file.name.endswith(".txt"):
-        try: return uploaded_file.read().decode("utf-8")
-        except: return ""
-    return ""
-
-def create_html_report(content, title):
-    html_content = markdown.markdown(content, extensions=['tables'])
-    return f"<html><body><h1>{title}</h1>{html_content}</body></html>"
-
-def clean_markdown_text(text):
-    if not isinstance(text, str): return text
-    return text.replace('**', '').replace('__', '').replace('### ', '').replace('## ', '').replace('# ', '')
-
-def to_excel(df):
-    export_df = df.copy()
-    for col in export_df.columns:
-        export_df[col] = export_df[col].apply(clean_markdown_text)
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        export_df.to_excel(writer, index=False, sheet_name='Story Map')
-        worksheet = writer.sheets['Story Map']
-        header_fill = PatternFill(start_color="008080", end_color="008080", fill_type="solid")
-        header_font = Font(color="FFFFFF", bold=True, size=12, name="Calibri")
-        for cell in worksheet[1]:
-            cell.fill = header_fill
-            cell.font = header_font
-        for i, col in enumerate(export_df.columns):
-            worksheet.column_dimensions[chr(65 + i)].width = 25
-    return output.getvalue()
-
-def analyze_outline(text, genre, framework, locale):
-    prompt = f"Analyze this PLOT OUTLINE against {framework}. Output Structural Health Score, Gap Analysis, and Pacing Check. Use {locale} spelling.\n\nTEXT: {text}"
-    model = genai.GenerativeModel('gemini-flash-latest')
-    return model.generate_content(prompt).text
-
-def analyze_scene(text, genre, framework, beat, locale):
-    prompt = f"""
-    You are a ruthless Story Grid editor. Analyze this SCENE.
-    LANGUAGE SETTING: Write in strictly {locale}.
-    STYLE: RUTHLESSLY CONCISE. Use Markdown Tables.
-    CONTEXT: Genre: {genre} | Framework: {framework} | Beat: {beat}
-    OUTPUT FORMAT:
-    1. HEADER: "# [Emoji] [Start Value] ➔ [End Value]"
-    2. THE 5 COMMANDMENTS (Bullet points)
-    3. VISUAL SCOREBOARD (Markdown Table: Element, Start Value, End Value, Notes)
-    """
-    if "None" not in framework: prompt += f"\n4. FRAMEWORK CHECK ({framework}): Verdict & Reason."
-    prompt += f"\n5. GENRE CHECK: Gold Star Moment 🌟\n\nSTORY TEXT: {text}"
-    model = genai.GenerativeModel('gemini-flash-latest')
-    return model.generate_content(prompt).text
-
-# --- UI START ---
-
-# 1. SIDEBAR NAVIGATION
+# ==========================================
+# 4. SIDEBAR (Unified Config & Tools)
+# ==========================================
 with st.sidebar:
+    st.image(config["icon"], width=50)
     st.title("Navigator")
-    st.markdown("### 🗂️ Active Project")
-    selected_project_key = st.selectbox("Select Book/Series", list(PROJECTS.keys()), label_visibility="collapsed")
     
-    # Load Config
-    config = PROJECTS[selected_project_key]
-    apply_theme(config["theme_color"]) # Apply Theme
-    
+    # --- A. Status Badge ---
+    if is_admin:
+        st.success(f"🔑 **Admin Mode**\n\nActive: {config['project_name']}")
+    else:
+        st.info("👀 **Guest Mode**\n\nViewing: Safe Demo")
+
     st.divider()
-    st.markdown("### ✍️ Creator Tools")
+
+    # --- B. Analysis Config (Visible to All) ---
+    st.markdown("### ⚙️ Analysis Config")
+    selected_genre = st.selectbox("Genre", ["Action/Thriller", "Love Story", "Horror", "Mystery/Crime", "Sci-Fi/Fantasy", "Western"])
+    selected_framework = st.selectbox("Framework", ["None (Pure Story Grid)", "Save the Cat!", "Romancing the Beat", "Hero's Journey"])
     
-# --- QUICK ADD FORM (The new "Write" Feature) ---
-# Only show this form if "Helle" is logged in
-if is_admin:
-    with st.expander("➕ Quick Add to Codex", expanded=False):
-        with st.form("add_record_form", clear_on_submit=True):
-            new_name = st.text_input("Name", placeholder="e.g. The Crystal Key")
-            new_cat = st.selectbox("Category", ["Character", "Location", "Lore", "Item", "Faction"])
-            new_desc = st.text_area("Description", placeholder="A brief summary...")
-            
-            if st.form_submit_button("Save to Airtable"):
-                if add_to_codex(config["base_id"], config["codex_table_id"], new_name, new_cat, new_desc):
-                    st.toast(f"Saved {new_name}!", icon="💾")
-                    fetch_master_codex.clear() # Force refresh data
-                    st.rerun()
-                    
-# --- ANALYSIS CONFIG (Pinned to Sidebar) ---
-# This code is NOT indented. It sits on the "Left Wall".
-st.sidebar.divider()
-st.sidebar.markdown("### ⚙️ Analysis Config")
+    st.metric("Scenes Logged", len(st.session_state.chapter_log))
+    
+    if st.button("🗑️ Clear Session Data"):
+        st.session_state.chapter_log = []
+        st.rerun()
 
-selected_genre = st.sidebar.selectbox("Genre", ["Action/Thriller", "Love Story", "Horror", "Mystery/Crime", "Sci-Fi/Fantasy", "Western"])
-selected_framework = st.sidebar.selectbox("Framework", ["None (Pure Story Grid)", "Save the Cat!", "Romancing the Beat", "Hero's Journey"])
+    # --- C. CREATOR TOOLS (ADMIN ONLY) ---
+    if is_admin:
+        st.divider()
+        st.markdown("### ✍️ Creator Tools")
+        with st.expander("➕ Quick Add to Codex", expanded=False):
+            with st.form("add_record_form", clear_on_submit=True):
+                new_name = st.text_input("Name", placeholder="e.g. The Crystal Key")
+                new_cat = st.selectbox("Category", ["Character", "Location", "Lore", "Item", "Faction"])
+                new_desc = st.text_area("Description", placeholder="A brief summary...")
+                
+                if st.form_submit_button("Save to Airtable"):
+                    if add_to_codex(config["base_id"], config["codex_table_id"], new_name, new_cat, new_desc):
+                        st.toast(f"Saved {new_name}!", icon="💾")
+                        fetch_master_codex.clear()
+                        st.rerun()
 
-scene_count = len(st.session_state.chapter_log)
-st.sidebar.metric("Scenes Logged", scene_count)
+# ==========================================
+# 5. MAIN PAGE LOGIC (Fork in the Road)
+# ==========================================
 
-if st.sidebar.button("🗑️ Clear Session Data"):
-    st.session_state.chapter_log = []
-    st.rerun()
-# 2. MAIN HEADER
+# --- PATH A: GUEST VIEW (Safe Mode) ---
+if not is_admin:
+    st.title("👋 Welcome to Story Analyzer")
+    st.markdown("""
+    ### You are currently in Guest Mode.
+    
+    This is a safe, read-only demonstration of the Story Analyzer app. 
+    The Admin's active project data (The Chione Trilogy) is **hidden** to prevent spoilers.
+    
+    #### 🚀 How to use this App:
+    1.  **Check the Sidebar:** You can see the configuration options on the left.
+    2.  **Coming Soon:** We are building a 'Dummy Project' for you to explore here.
+    3.  **Login:** If you are the Creator, please refresh and log in as 'Helle'.
+    """)
+    st.divider()
+    st.caption("🔒 Restricted Access: Read-Only")
+    st.stop() # <--- STOPS APP HERE FOR GUESTS
+
+
+# --- PATH B: ADMIN VIEW (Real App) ---
+# 1. Main Headers
 col_h1, col_h2 = st.columns([1, 6])
-with col_h1: st.title(config["icon"])
-with col_h2:
-    st.title(f"{selected_project_key}")
-    st.caption(f"Story Grid Analyzer Pro • {selected_genre} • {config['locale']}")
+with col_h1: st.write("") # Spacer
+with col_h2: 
+    st.title(config["project_name"])
+    st.caption(f"Story Grid Analyzer Pro • {selected_genre} • {config['language']}")
+
+# 2. Metrics
+codex = fetch_master_codex(config["base_id"], config["codex_table_id"])
+scenes_tracked = len(st.session_state.chapter_log)
 
 m1, m2, m3, m4 = st.columns(4)
-with m1: st.metric("World Status", "Online", "Connected")
-with m2: st.metric("Codex Mode", "Unified", "Read/Write")
-with m3: st.metric("Scenes Tracked", scene_count)
-with m4: st.metric("Draft Health", "Pending")
-st.markdown("---")
+m1.metric("World Status", "Online", delta="Connected")
+m2.metric("Codex Items", len(codex), delta="Read/Write") 
+m3.metric("Scenes Tracked", scenes_tracked)
+m4.metric("Draft Health", "In Progress")
 
-# 3. TABS
-tab1, tab2, tab3 = st.tabs(["🩺 Outline Doctor", "🔬 Scene Logger", "📚 World Codex"])
-
-# === TAB 1: OUTLINE DOCTOR ===
-with tab1:
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        uploaded_outline = st.file_uploader("Drop your full outline or synopsis here", type=["docx", "txt"], key="outline")
-        outline_text = read_file(uploaded_outline) if uploaded_outline else ""
-    with c2: st.info("💡 Paste your beat sheet here for a check-up.")
-    outline_input = st.text_area("Or paste text:", value=outline_text, height=300)
-    
-    if st.button("✨ Run Diagnosis", type="primary", use_container_width=True):
-        if outline_input:
-            with st.spinner(f"Analyzing..."):
-                try:
-                    res = analyze_outline(outline_input, selected_genre, selected_framework, config['locale'])
-                    st.markdown(res)
-                    st.balloons()
-                except Exception as e: st.error(f"Error: {e}")
-
-# === TAB 2: SCENE LOGGER ===
-with tab2:
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        with st.container(border=True):
-            chapter_title = st.text_input("Chapter Title", placeholder="e.g. Chapter 1")
-            uploaded_scene = st.file_uploader("Upload Scene", type=["docx", "txt"], key="scene")
-            scene_text = read_file(uploaded_scene) if uploaded_scene else ""
-            scene_input = st.text_area("Scene Text", value=scene_text, height=250)
-            
-            if st.button("🚀 Analyze Scene", type="primary", use_container_width=True):
-                if scene_input:
-                    with st.spinner("Analyzing..."):
-                        try:
-                            rep = analyze_scene(scene_input, selected_genre, selected_framework, "General", config['locale'])
-                            st.session_state.current_report = rep
-                            st.toast("Done!", icon="✅")
-                            st.rerun()
-                        except Exception as e: st.error(f"Error: {e}")
-
-    with col2:
-        if st.session_state.current_report:
-            if st.button("➕ Add to Log", use_container_width=True):
-                st.session_state.chapter_log.append({"Chapter": chapter_title, "Analysis": st.session_state.current_report})
-                st.toast("Saved!", icon="💾")
-            st.download_button("📥 Download Report", create_html_report(st.session_state.current_report, chapter_title), "report.html", use_container_width=True)
-
-    if st.session_state.current_report:
-        with st.expander("📝 Full Report", expanded=True): st.markdown(st.session_state.current_report)
-
-# === TAB 3: DYNAMIC WORLD CODEX ===
-with tab3:
-    # Fetch the ONE master table
-    df_codex = fetch_master_codex(config["base_id"], config["codex_table_id"])
-    
-    if df_codex is not None and not df_codex.empty and "Category" in df_codex.columns:
-        # Get unique categories (e.g., Character, Location)
-        categories = df_codex["Category"].unique()
-        
-        # Create dynamic sub-tabs for each category
-       # Filter out any blank/None categories to prevent crashes
-        valid_categories = [c for c in categories if c and isinstance(c, str)]
-        if not valid_categories:
-            st.warning("No categories found in Codex. Please tag your items!")
-            st.stop()
-
-# --- SAFETY FILTER START ---
-    # 1. Create a "Clean List" (No blanks, no None)
-    valid_categories = sorted([c for c in categories if c and isinstance(c, str)])
-
-    # 2. Safety Stop: If the list is empty, warn instead of crashing
-    if not valid_categories:
-        st.warning("⚠️ No valid categories found in Codex 2.0. Please check your tags!")
-        st.stop()
-
-    # 3. Create the Tabs using ONLY the Clean List
-    sub_tabs = st.tabs(valid_categories)
-
-   # 4. Loop through the Clean List (Replace your old loop with this entire block)
-    for i, cat in enumerate(valid_categories):
-        with sub_tabs[i]:
-            # --- 1. Filter data for this tab ---
-            df_filtered = df_codex[df_codex["Category"] == cat]
-            
-            # --- 2. Search Bar ---
-            search = st.text_input(f"Search {cat}s...", key=f"search_{cat}")
-            if search:
-                mask = df_filtered.apply(lambda x: x.astype(str).str.contains(search, case=False).any(), axis=1)
-                df_filtered = df_filtered[mask]
-            
-            # --- 3. The Card Display Logic ---
-            if df_filtered.empty:
-                st.info(f"No {cat} entries found.")
-            else:
-                # Loop through the rows to display "Cards"
-                for index, row in df_filtered.iterrows():
-                    
-                    # HEADLINE (Name + Role)
-                    name = row.get("Name", "Unnamed")
-                    role = row.get("Role")
-                    
-                    if role and isinstance(role, str):
-                        st.subheader(f"{name} ({role})")
-                    else:
-                        st.subheader(name)
-                    
-                    # DESCRIPTION
-                    desc = row.get("Description")
-                    if desc and isinstance(desc, str):
-                        st.write(desc)
-                    
-                    # RICH DETAILS
-                    details = row.get("Details")
-                    if details and isinstance(details, str):
-                        st.markdown(details) 
-                    
-                    # Divider
-                    st.markdown("---")
-                
-                st.caption(f"Showing {len(df_filtered)} items")
-# === FOOTER ===
 st.divider()
-if len(st.session_state.chapter_log) > 0:
-    st.subheader("📊 Session Log")
-    df = pd.DataFrame(st.session_state.chapter_log)
-    st.dataframe(df, use_container_width=True)
-    st.download_button("📥 Download Excel", to_excel(df), "log.xlsx")
+
+# 3. The Tabs
+tab1, tab2, tab3 = st.tabs(["📝 Outline Drafter", "🔮 Scene Logger", "🌍 World Codex"])
+
+with tab1:
+    st.info("Drag and drop your text file here for a check-up.")
+    uploaded_file = st.file_uploader("Upload Chapter", type=["txt", "md"])
+
+with tab2:
+    st.write("### Scene Logger")
+    st.write("Scene logging tools will appear here.")
+
+with tab3:
+    # CODEX SEARCH & DISPLAY
+    categories = set([r['fields'].get('Category') for r in codex])
+    valid_categories = sorted([c for c in categories if c and isinstance(c, str)])
+    
+    if not valid_categories:
+        st.warning("No categories found.")
+    else:
+        sub_tabs = st.tabs(valid_categories)
+        for i, cat in enumerate(valid_categories):
+            with sub_tabs[i]:
+                # Filter strictly by category
+                df_filtered = [r for r in codex if r['fields'].get('Category') == cat]
+                
+                # Search Bar
+                search = st.text_input(f"Search {cat}...", key=f"search_{cat}")
+                
+                # Render Cards
+                if not df_filtered:
+                    st.info(f"No {cat} entries found.")
+                else:
+                    for item in df_filtered:
+                        fields = item['fields']
+                        name = fields.get('Name', 'Unnamed')
+                        
+                        # Apply Search Filter
+                        if search and search.lower() not in name.lower():
+                            continue
+                            
+                        role = fields.get('Role', '')
+                        display_name = f"{name} ({role})" if role else name
+                        
+                        st.subheader(display_name)
+                        if 'Description' in fields:
+                            st.write(fields['Description'])
+                        if 'Details' in fields:
+                            st.markdown(fields['Details'])
+                        st.markdown("---")
