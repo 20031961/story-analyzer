@@ -119,8 +119,7 @@ is_admin = (st.session_state.user_role == "admin")
 # 4. SIDEBAR (Unified Config & Tools)
 # ==========================================
 with st.sidebar:
-    st.image(config["icon"], width=50)
-    st.title("Navigator")
+       st.title("Navigator")
     
     # --- A. Status Badge ---
     if is_admin:
