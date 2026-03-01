@@ -115,11 +115,11 @@ if not check_password():
 # Define permission variable
 is_admin = (st.session_state.user_role == "admin")
 
-# ==========================================
+## ==========================================
 # 4. SIDEBAR (Unified Config & Tools)
 # ==========================================
 with st.sidebar:
-       st.title("Navigator")
+    st.title(f"{config['icon']} Navigator")
     
     # --- A. Status Badge ---
     if is_admin:
@@ -155,7 +155,6 @@ with st.sidebar:
                         st.toast(f"Saved {new_name}!", icon="💾")
                         fetch_master_codex.clear()
                         st.rerun()
-
 # ==========================================
 # 5. MAIN PAGE LOGIC (Fork in the Road)
 # ==========================================
